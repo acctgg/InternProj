@@ -75,7 +75,7 @@ time the columns change; choices you already made are kept.
    **Enter** to pick, and press **/** to jump to the submission search.
    Each admin's choice is remembered. The newest pending one is shown first, and ✓ marks
    the ones already done.
-4. Read the photo. Use zoom, rotate and *Scan look* (grayscale with high
+4. Read the photo. Use zoom (it stays centered; when zoomed in, **hold the left mouse button and drag** to move around the photo), rotate and *Scan look* (grayscale with high
    contrast) to make the handwriting easier to read. Switch between
    *Journal* and *Extra page* photos with the buttons above the photo.
 5. **Auto-fill:** type a date (`10/12/26`) into an empty row and press

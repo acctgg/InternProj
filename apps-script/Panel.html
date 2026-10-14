@@ -91,6 +91,8 @@
   .viewer { position: relative; flex: 1; min-height: 0; background: var(--viewer);
             background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px); background-size: 18px 18px; }
   #viewport { position: absolute; inset: 0; overflow: auto; text-align: center; padding: 18px 18px 70px; }
+  #viewport.pannable { cursor: grab; }
+  #viewport.panning { cursor: grabbing; user-select: none; }
   #viewport canvas { display: block; margin: 0 auto; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.45); background: #fff; }
   .empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #aab1c2; }
   .empty svg { width: 34px; height: 34px; stroke-width: 1.5; opacity: .8; }
@@ -475,6 +477,7 @@
     c.style.width = (S.zoom * 100) + '%';
     $('viewport').innerHTML = '';
     $('viewport').appendChild(c);
+    updatePannable();
   }
 
   // ---- entry grid ----
@@ -660,10 +663,43 @@
   $('branch').onchange = e => { S.branch = e.target.value; remember('branch', S.branch); S.cur = null; fillSelect(); };
   $('pendingOnly').onchange = () => fillSelect(S.cur && S.cur.key);
   $('pages').onclick = e => { const b = e.target.closest('button'); if (b) showPage(+b.dataset.n); };
-  $('zoomIn').onclick = () => { S.zoom = Math.min(4, S.zoom * 1.25); draw(); };
-  $('zoomOut').onclick = () => { S.zoom = Math.max(0.25, S.zoom / 1.25); draw(); };
+  /** Zooms while keeping the part of the photo in the middle of the view in the middle. */
+  function zoomTo(z) {
+    const v = $('viewport');
+    const cx = (v.scrollLeft + v.clientWidth / 2) / (v.scrollWidth || 1);
+    const cy = (v.scrollTop + v.clientHeight / 2) / (v.scrollHeight || 1);
+    S.zoom = z;
+    draw();
+    v.scrollLeft = cx * v.scrollWidth - v.clientWidth / 2;
+    v.scrollTop = cy * v.scrollHeight - v.clientHeight / 2;
+  }
+  $('zoomIn').onclick = () => zoomTo(Math.min(4, S.zoom * 1.25));
+  $('zoomOut').onclick = () => zoomTo(Math.max(0.25, S.zoom / 1.25));
   $('rotate').onclick = () => { S.rot = (S.rot + 90) % 360; draw(); };
   $('scanLook').onchange = draw;
+
+  // ---- drag to move a zoomed-in photo (left mouse button) ----
+  function updatePannable() {
+    const v = $('viewport');
+    v.classList.toggle('pannable', !!v.querySelector('canvas') && (v.scrollWidth > v.clientWidth || v.scrollHeight > v.clientHeight));
+  }
+  (() => {
+    const v = $('viewport');
+    let drag = null;
+    v.addEventListener('mousedown', e => {
+      if (e.button !== 0 || !v.classList.contains('pannable')) return;
+      e.preventDefault();
+      drag = { x: e.clientX, y: e.clientY, left: v.scrollLeft, top: v.scrollTop };
+      v.classList.add('panning');
+    });
+    window.addEventListener('mousemove', e => {
+      if (!drag) return;
+      v.scrollLeft = drag.left - (e.clientX - drag.x);
+      v.scrollTop = drag.top - (e.clientY - drag.y);
+    });
+    window.addEventListener('mouseup', () => { drag = null; v.classList.remove('panning'); });
+    window.addEventListener('resize', updatePannable);
+  })();
   $('addRow').onclick = () => { addRow(null, true); totals(); };
   $('save').onclick = save;
   $('bannerClose').onclick = () => $('banner').classList.remove('show');
