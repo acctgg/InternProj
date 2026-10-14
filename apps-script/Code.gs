@@ -101,8 +101,10 @@ function getEntries(key) {
 /**
  * Replaces the typed rows for one submission, re-runs the comparison and
  * returns the comparison rows for the dates on this page.
+ * unchecked[i] is true when row i still has values auto-filled from Spreadsheet 2
+ * that nobody confirmed against the photo; that is recorded in "Row check".
  */
-function saveEntries(key, responseRow, rows, branch) {
+function saveEntries(key, responseRow, rows, branch, unchecked) {
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
@@ -110,10 +112,12 @@ function saveEntries(key, responseRow, rows, branch) {
     const who = Session.getActiveUser().getEmail();
     const now = new Date();
     const out = rows
-      .filter(r => r.some(v => String(v).trim() !== ''))
-      .map(r => {
-        const values = FIELDS.map((f, i) => NUMERIC_FIELDS.indexOf(f) >= 0 && r[i] !== '' ? toNumber_(r[i]) : r[i]);
-        return [key, responseRow].concat(values, [rowCheck_(values, s), who, now, branch || '']);
+      .map((r, n) => ({ r: r, unchecked: !!(unchecked && unchecked[n]) }))
+      .filter(x => x.r.some(v => String(v).trim() !== ''))
+      .map(x => {
+        const values = FIELDS.map((f, i) => NUMERIC_FIELDS.indexOf(f) >= 0 && x.r[i] !== '' ? toNumber_(x.r[i]) : x.r[i]);
+        const check = rowCheck_(values, s) + (x.unchecked ? ' · filled from Spreadsheet 2, not checked' : '');
+        return [key, responseRow].concat(values, [check, who, now, branch || '']);
       });
     if (out.some(r => !normDate_(r[2]))) throw new Error('Every row needs a DATE.');
 

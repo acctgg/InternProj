@@ -71,6 +71,39 @@ function runComparison_() {
   return out;
 }
 
+/**
+ * Spreadsheet 2 rows for one date (and branch, when a column is matched to BRANCH),
+ * shaped like logbook rows [DATE, NAME, CI#, CASH, CARD, VAT SALE, 12% VAT] so the
+ * panel can pre-fill the grid. Fields with no matched column come back blank.
+ */
+function getDayRows(dateText, branch) {
+  const d = normDate_(dateText);
+  if (!d) return [];
+  const s = getSettings_();
+  const mapping = readMapping_(false);
+  const dateMap = mapping.filter(m => m.field === 'DATE')[0];
+  if (!dateMap) throw new Error('In "' + SHEETS.CONFIG + '", set one Spreadsheet 2 column to DATE.');
+  const branchMap = mapping.filter(m => m.field === BRANCH)[0];
+  const cols = FIELDS.map(f => {
+    const m = mapping.filter(x => x.field === f)[0];
+    return m ? m.col : 0;
+  });
+  const src = openSource_(s);
+  const lastRow = src.getLastRow();
+  if (lastRow <= s.headerRow) return [];
+  const lastCol = Math.max.apply(null, mapping.map(m => m.col));
+  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+  return src.getRange(s.headerRow + 1, 1, lastRow - s.headerRow, lastCol).getValues()
+    .filter(r => normDate_(r[dateMap.col - 1]) === d)
+    .filter(r => !branchMap || !branch || normText_(r[branchMap.col - 1]) === normText_(branch))
+    .map(r => cols.map((c, i) => {
+      if (i === 0) return d;
+      const v = c ? r[c - 1] : '';
+      if (NUMERIC_FIELDS.indexOf(FIELDS[i]) >= 0 && toNumber_(v) === 0) return '';  // logbooks leave zero amounts blank
+      return v instanceof Date ? Utilities.formatDate(v, tz, 'MM/dd/yy') : v;  // Dates can't be sent to the panel
+    }));
+}
+
 function bookValue_(row, field) {
   if (field === TOTAL_FIELD) {
     return toNumber_(row[FIELDS.indexOf('CASH')]) + toNumber_(row[FIELDS.indexOf('CARD')]);

@@ -72,7 +72,15 @@ time the columns change; choices you already made are kept.
 4. Read the photo. Use zoom, rotate and *Scan look* (grayscale with high
    contrast) to make the handwriting easier to read. Switch between
    *Journal* and *Extra page* photos with the buttons above the photo.
-5. Type each logbook row. **Enter** moves to the next cell, a new row
+5. **Auto-fill:** type a date (`10/12/26`) into an empty row and press
+   **Enter**. If Spreadsheet 2 already has rows for that date and branch,
+   they're filled into the grid in **blue**. Check each blue cell against
+   the photo: a cell turns white once you edit it, or click
+   **Mark all checked**. Saving with blue cells left needs a second click
+   (*Save anyway*), and those rows are marked "filled from Spreadsheet 2,
+   not checked" in the Journal Entries tab. A filled value always matches
+   Spreadsheet 2, so the comparison is only as good as this check.
+   Otherwise, type each logbook row. **Enter** moves to the next cell, a new row
    copies the date from the row above, and rows whose numbers don't add up
    turn yellow.
 6. **Save & compare.** The results for that page's dates appear in the

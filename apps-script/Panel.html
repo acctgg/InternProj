@@ -108,6 +108,14 @@
   .grid .del { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 7px; background: none; color: var(--faint); cursor: pointer; opacity: 0; transition: .12s; }
   .grid tr:hover .del, .grid .del:focus { opacity: 1; }
   .grid .del:hover { background: var(--bad-soft); color: var(--bad); }
+  .grid input.pre { background: #eef3ff; border-color: #cbd7ff; color: #2b3f9e; }
+  .grid input.pre:focus { background: #fff; }
+  .grid tr.loading td.idx { color: var(--accent); }
+  .note { display: none; margin: 8px 8px 0; padding: 8px 10px; border-radius: 9px; background: var(--accent-soft); color: #2b3f9e; font-size: 12px; align-items: center; gap: 10px; }
+  .note.show { display: flex; }
+  .note.armed { background: var(--warn-soft); color: var(--warn); }
+  .note span { flex: 1; }
+  .note .btn { height: 26px; padding: 0 10px; font-size: 12px; }
   .add-line { margin: 8px; width: calc(100% - 16px); height: 34px; border: 1px dashed var(--line-strong); border-radius: 9px; background: none; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; }
   .add-line:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
@@ -190,6 +198,7 @@
       <button class="btn primary" id="save"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Save &amp; compare</button>
     </div>
     <div id="entryWrap">
+      <div class="note" id="note"><span id="noteText"></span><button class="btn" id="markChecked">Mark all checked</button></div>
       <table class="grid">
         <colgroup><col style="width:30px"><col style="width:84px"><col><col style="width:68px">
           <col style="width:74px"><col style="width:74px"><col style="width:80px"><col style="width:72px"><col style="width:30px"><col style="width:32px"></colgroup>
@@ -299,6 +308,9 @@
     showPage(0);
     $('rows').innerHTML = '';
     $('results').innerHTML = HINT;
+    S.flash = '';
+    disarmSave();
+    updateNote();
     call('getEntries', [S.cur.key], rows => {
       (rows.length ? rows : [['', '', '', '', '', '', '']]).forEach(r => addRow(r));
       totals();
@@ -346,8 +358,10 @@
   }
 
   // ---- entry grid ----
-  function addRow(values, focus) {
-    const prev = $('rows').lastElementChild;
+  /** opts.after: insert below this row; opts.pre: highlight filled cells as "from Spreadsheet 2, not checked yet". */
+  function addRow(values, focus, opts) {
+    opts = opts || {};
+    const prev = opts.after || $('rows').lastElementChild;
     values = values || ['', '', '', '', '', '', ''];
     if (!values[0] && prev) values[0] = prev.querySelector('input').value;  // carry the date down
     values[0] = shortDate(values[0]);
@@ -356,11 +370,13 @@
       const extra = i === 0 ? ' placeholder="mm/dd/yy"' : NUM.includes(i) ? ' inputmode="decimal" placeholder="0.00"' : '';
       return `<td class="${NUM.includes(i) ? 'num' : ''}"><input type="text"${extra} value="${esc(values[i])}" title="${esc(values[i])}"></td>`;
     }).join('') + `<td class="check"></td><td><button class="del" title="Delete row" tabindex="-1">${ICON.del}</button></td>`;
-    tr.querySelector('.del').onclick = () => { tr.remove(); renumber(); totals(); };
-    $('rows').appendChild(tr);
+    tr.querySelector('.del').onclick = () => { tr.remove(); renumber(); totals(); updateNote(); };
+    if (opts.pre) [...tr.querySelectorAll('input')].slice(1).forEach(inp => inp.classList.toggle('pre', inp.value !== ''));
+    $('rows').insertBefore(tr, opts.after ? opts.after.nextSibling : null);
     renumber();
     checkRow(tr);
     if (focus) tr.querySelectorAll('input')[prev ? 1 : 0].focus();
+    return tr;
   }
   /** 2026-10-12 → 10/12/26, the way dates are written in the logbook. */
   function shortDate(v) {
@@ -385,7 +401,85 @@
     [...$('rows').children].forEach(tr => { const v = rowValues(tr); NUM.forEach((c, k) => sums[k] += num(v[c])); });
     ['tCash', 'tCard', 'tVs', 'tVat'].forEach((id, k) => $(id).textContent = money(sums[k]));
   }
-  $('rows').addEventListener('input', e => { checkRow(e.target.closest('tr')); totals(); });
+  $('rows').addEventListener('input', e => {
+    if (e.target.classList.contains('pre')) { e.target.classList.remove('pre'); }  // edited = checked by a person
+    disarmSave();
+    checkRow(e.target.closest('tr'));
+    totals();
+    updateNote();
+  });
+  // Typing a date into an empty row pulls that day's rows from Spreadsheet 2.
+  $('rows').addEventListener('change', e => {
+    const tr = e.target.closest('tr');
+    if (!tr || e.target !== tr.querySelector('input')) return;
+    const v = rowValues(tr);
+    if (!/^\d{1,2}\/\d{1,2}\/(\d{2}|\d{4})$/.test(v[0]) || v.slice(1).some(x => x !== '')) return;
+    autofill(tr, v[0]);
+  });
+
+  // ---- auto-fill from Spreadsheet 2 ----
+  function autofill(tr, date) {
+    tr.classList.add('loading');
+    flash('Looking up ' + date + ' in Spreadsheet 2…');
+    call('getDayRows', [date, S.cur ? S.cur.branch || '' : ''], found => {
+      tr.classList.remove('loading');
+      if (!tr.isConnected || rowValues(tr).slice(1).some(x => x !== '')) return updateNote();  // user typed meanwhile
+      const have = [...$('rows').children].map(r => rowValues(r)[2]).filter(String);
+      const fresh = found.filter(r => !(String(r[2]).trim() && have.includes(String(r[2]).trim())));
+      if (!fresh.length) {
+        flash(found.length ? 'All of Spreadsheet 2\'s rows for ' + date + ' are already in the grid.'
+          : 'No rows in Spreadsheet 2 for ' + date + (S.cur && S.cur.branch ? ' · ' + S.cur.branch : '') + '. Type them in.');
+        return;
+      }
+      let last = tr;
+      fresh.forEach((r, i) => {
+        r = r.map(x => x == null ? '' : String(x));
+        r[0] = date;
+        if (i === 0) {
+          [...tr.querySelectorAll('input')].forEach((inp, k) => { if (k) { inp.value = r[k]; inp.title = r[k]; inp.classList.toggle('pre', r[k] !== ''); } });
+          checkRow(tr);
+        } else {
+          last = addRow(r, false, { after: last, pre: true });
+        }
+      });
+      renumber();
+      totals();
+      S.flash = '';
+      updateNote();
+      tr.querySelectorAll('input')[1].focus();
+    });
+  }
+  function flash(msg) {
+    S.flash = msg;
+    updateNote();
+    clearTimeout(S.flashTimer);
+    S.flashTimer = setTimeout(() => { if (S.flash === msg) { S.flash = ''; updateNote(); } }, 5000);
+  }
+  function pendingCells() { return $('rows').querySelectorAll('input.pre').length; }
+  function updateNote() {
+    const n = pendingCells();
+    const note = $('note');
+    $('markChecked').style.display = n ? '' : 'none';
+    if (n) {
+      $('noteText').innerHTML = S.saveArmed
+        ? `<b>${n}</b> blue cell${n > 1 ? 's were' : ' was'} filled from Spreadsheet 2 and not checked. Click <b>Save anyway</b> to save as is.`
+        : `<b>${n}</b> cell${n > 1 ? 's' : ''} filled from Spreadsheet 2 (blue). Check them against the photo and fix any that differ.`;
+    } else {
+      $('noteText').textContent = S.flash || '';
+    }
+    note.classList.toggle('show', !!(n || S.flash));
+    note.classList.toggle('armed', !!(n && S.saveArmed));
+  }
+  function disarmSave() {
+    if (!S.saveArmed) return;
+    S.saveArmed = false;
+    $('save').lastChild.textContent = 'Save & compare';
+  }
+  $('markChecked').onclick = () => {
+    $('rows').querySelectorAll('input.pre').forEach(inp => inp.classList.remove('pre'));
+    disarmSave();
+    updateNote();
+  };
   $('rows').addEventListener('keydown', e => {
     if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
     e.preventDefault();
@@ -397,7 +491,16 @@
   // ---- save & results ----
   function save() {
     if (!S.cur) return;
-    const rows = [...$('rows').children].map(rowValues);
+    if (pendingCells() && !S.saveArmed) {
+      S.saveArmed = true;
+      $('save').lastChild.textContent = 'Save anyway';
+      updateNote();
+      return;
+    }
+    const trs = [...$('rows').children];
+    const rows = trs.map(rowValues);
+    const unchecked = trs.map(tr => !!tr.querySelector('input.pre'));
+    disarmSave();
     $('save').disabled = true;
     status('Saving', false, true);
     google.script.run
@@ -409,7 +512,7 @@
         loadSubs(S.cur.key);
       })
       .withFailureHandler(e => { $('save').disabled = false; status(e.message || e, true); })
-      .saveEntries(S.cur.key, S.cur.row, rows, S.cur.branch || '');
+      .saveEntries(S.cur.key, S.cur.row, rows, S.cur.branch || '', unchecked);
   }
   function showResults(res) {
     if (!res.length) {
