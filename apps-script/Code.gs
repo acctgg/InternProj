@@ -53,30 +53,39 @@ function fileIds_(cell) {
   return String(cell || '').match(/[-\w]{25,}/g) || [];
 }
 
+// Long side of the preview sent to the panel. Full-size phone photos are too big for
+// google.script.run (it fails with "NetworkError: Connection failure due to HTTP 503").
+const PREVIEW_SIZE = 1600;
+const MAX_RAW_BYTES = 3e6;
+
 /**
- * Returns a photo as a data URL the panel can draw. JPEG/PNG are sent as-is;
- * other formats (HEIC from iPhones, PDF) go through Drive's thumbnail renderer.
+ * Returns a photo as a data URL the panel can draw: a resized copy from Drive's
+ * thumbnail renderer (also handles HEIC and PDF), or the original if it is small.
  */
 function getImage(fileId) {
   const file = DriveApp.getFileById(fileId);
   const info = { name: file.getName(), url: file.getUrl(), dataUrl: null };
-  const blob = file.getBlob();
-  const type = blob.getContentType();
-  if (/^image\/(jpeg|png|webp|gif)$/.test(type) && file.getSize() < 15e6) {
-    info.dataUrl = 'data:' + type + ';base64,' + Utilities.base64Encode(blob.getBytes());
-    return info;
-  }
   try {
-    const auth = { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } };
+    const auth = { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true };
     const meta = JSON.parse(UrlFetchApp.fetch(
       'https://www.googleapis.com/drive/v3/files/' + fileId + '?fields=thumbnailLink', auth).getContentText());
     if (meta.thumbnailLink) {
-      const big = meta.thumbnailLink.replace(/=s\d+$/, '=s2400');
-      const thumb = UrlFetchApp.fetch(big, auth).getBlob();
-      info.dataUrl = 'data:' + thumb.getContentType() + ';base64,' + Utilities.base64Encode(thumb.getBytes());
+      const res = UrlFetchApp.fetch(meta.thumbnailLink.replace(/=s\d+$/, '=s' + PREVIEW_SIZE), auth);
+      if (res.getResponseCode() === 200) {
+        const thumb = res.getBlob();
+        info.dataUrl = 'data:' + thumb.getContentType() + ';base64,' + Utilities.base64Encode(thumb.getBytes());
+        return info;
+      }
     }
   } catch (err) {
-    info.error = 'Could not preview this file (' + type + '). Use "Open in Drive".';
+    // fall through to the original file
+  }
+  const type = file.getMimeType();
+  if (/^image\/(jpeg|png|webp|gif)$/.test(type) && file.getSize() <= MAX_RAW_BYTES) {
+    info.dataUrl = 'data:' + type + ';base64,' + Utilities.base64Encode(file.getBlob().getBytes());
+  } else {
+    info.error = 'Preview not ready yet (Drive may still be processing a new upload). ' +
+      'Try again in a minute, or use "Open in Drive".';
   }
   return info;
 }
