@@ -51,6 +51,7 @@ Google Form upload ─► Spreadsheet 1 (Form responses)
 | Branch column in Spreadsheet 1 | blank = the column whose header contains "Branch" |
 | Tolerance for amounts (±) | 1 |
 | VAT rate | 0.12 |
+| Count identical Spreadsheet 2 rows once | `yes`: rows repeated in every matched column count once. Match an invoice/CI# column so two separate sales with the same amount are never merged |
 
 Below the settings is the **column matching** table. The tool reads
 Spreadsheet 2's header for each of C, D and X–AF and guesses which logbook

@@ -30,6 +30,7 @@ const DEFAULTS = [
   ['Branch column in Spreadsheet 1 (blank = find the "Branch" header)', ''],
   ['Tolerance for amounts (±)', 1],
   ['VAT rate', 0.12],
+  ['Count identical Spreadsheet 2 rows once (yes/no)', 'yes'],
 ];
 const MAP_TITLE = 'Column matching: which logbook field is in each Spreadsheet 2 column?';
 
@@ -53,6 +54,7 @@ function getSettings_() {
     branchCol: String(v[8]).trim(),
     tolerance: Number(v[9]) || 0,
     vatRate: Number(v[10]) || 0.12,
+    dedupe: !/^(no|n|false|0)$/i.test(String(v[11]).trim()),
   };
 }
 
@@ -150,6 +152,7 @@ function guessField_(header) {
   const h = String(header).toLowerCase();
   if (/date/.test(h)) return 'DATE';
   if (/branch|store|outlet/.test(h)) return BRANCH;
+  if (/deposit|receivable|cheque|transfer|categor|type|other/.test(h)) return IGNORE;
   if (/name|customer/.test(h)) return 'NAME';
   if (/\bci\b|ci#|ci no|invoice|or no|receipt/.test(h)) return 'CI#';
   if (/cash/.test(h)) return 'CASH';

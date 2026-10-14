@@ -51,6 +51,9 @@ function runComparison_() {
       let refRows = ref[d] || [];
       const filtered = branchMap && g.branch;
       if (filtered) refRows = refRows.filter(r => normText_(r[branchMap.col - 1]) === normText_(g.branch));
+      const before = refRows.length;
+      if (s.dedupe) refRows = dedupeRows_(refRows, mapping);
+      const dropped = before - refRows.length;
       if (!refRows.length) {
         out.push([d, dateMap.letter, dateMap.header, 'DATE', rows.length + ' logbook row(s)', '', '',
           STATUS.MISSING, filtered ? 'This date is not in Spreadsheet 2 for branch "' + g.branch + '"'
@@ -61,7 +64,8 @@ function runComparison_() {
         const bookVals = rows.map(r => bookValue_(r, m.field));
         const refVals = refRows.map(r => r[m.col - 1]);
         const result = compareField_(m.field, bookVals, refVals, s.tolerance);
-        const counts = rows.length + ' logbook row(s) vs ' + refRows.length + ' Spreadsheet 2 row(s)';
+        const counts = rows.length + ' logbook row(s) vs ' + refRows.length + ' Spreadsheet 2 row(s)' +
+          (dropped ? ' (' + dropped + ' duplicate row(s) ignored)' : '');
         result[4] = result[4] ? counts + '. ' + result[4] : counts;
         out.push([d, m.letter, m.header, m.field].concat(result, [g.branch]));
       });
@@ -93,15 +97,34 @@ function getDayRows(dateText, branch) {
   if (lastRow <= s.headerRow) return [];
   const lastCol = Math.max.apply(null, mapping.map(m => m.col));
   const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
-  return src.getRange(s.headerRow + 1, 1, lastRow - s.headerRow, lastCol).getValues()
+  let rows = src.getRange(s.headerRow + 1, 1, lastRow - s.headerRow, lastCol).getValues()
     .filter(r => normDate_(r[dateMap.col - 1]) === d)
-    .filter(r => !branchMap || !branch || normText_(r[branchMap.col - 1]) === normText_(branch))
-    .map(r => cols.map((c, i) => {
+    .filter(r => !branchMap || !branch || normText_(r[branchMap.col - 1]) === normText_(branch));
+  if (s.dedupe) rows = dedupeRows_(rows, mapping);
+  return rows.map(r => cols.map((c, i) => {
       if (i === 0) return d;
       const v = c ? r[c - 1] : '';
       if (NUMERIC_FIELDS.indexOf(FIELDS[i]) >= 0 && toNumber_(v) === 0) return '';  // logbooks leave zero amounts blank
       return v instanceof Date ? Utilities.formatDate(v, tz, 'MM/dd/yy') : v;  // Dates can't be sent to the panel
     }));
+}
+
+/**
+ * Drops Spreadsheet 2 rows that repeat an earlier row in every matched column
+ * (Spreadsheet 2 can list the same sale several times). Match an invoice/CI#
+ * column so that two separate sales with the same amount are never merged.
+ */
+function dedupeRows_(rows, mapping) {
+  const seen = {};
+  return rows.filter(r => {
+    const sig = mapping.map(m => {
+      const v = r[m.col - 1];
+      return v instanceof Date ? normDate_(v) : typeof v === 'number' ? String(round2_(v)) : normText_(v);
+    }).join('\u0001');
+    if (seen[sig]) return false;
+    seen[sig] = true;
+    return true;
+  });
 }
 
 function bookValue_(row, field) {
