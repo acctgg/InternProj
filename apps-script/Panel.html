@@ -3,78 +3,203 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --line: #dadce0; --muted: #5f6368; --accent: #1a73e8; --ok: #d9f2d9; --warn: #fff2cc; --bad: #f8d7da; }
+  :root {
+    --bg: #f3f5f9; --card: #ffffff; --ink: #1d2433; --muted: #6b7385; --faint: #9aa1b2;
+    --line: #e6e9f0; --line-strong: #d5dae4;
+    --accent: #3b5bdb; --accent-ink: #ffffff; --accent-soft: #eef2ff;
+    --ok: #12805c; --ok-soft: #e6f6ef; --warn: #a15c00; --warn-soft: #fff4e0; --bad: #c42b36; --bad-soft: #fdecee;
+    --viewer: #1f2430; --radius: 14px; --shadow: 0 1px 2px rgba(16,24,40,.05), 0 4px 16px rgba(16,24,40,.06);
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 13px/1.4 Arial, sans-serif; color: #202124; height: 100vh; display: flex; flex-direction: column; }
-  header { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
-  header select { flex: 1; padding: 4px; }
-  main { flex: 1; display: flex; min-height: 0; }
-  #left { flex: 1.25; display: flex; flex-direction: column; border-right: 1px solid var(--line); min-width: 0; }
-  #right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); }
-  .tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  button { padding: 4px 10px; border: 1px solid var(--line); background: #fff; border-radius: 4px; cursor: pointer; font: inherit; }
-  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  button:disabled { opacity: .5; cursor: default; }
-  #viewport { flex: 1; overflow: auto; background: #3c4043; text-align: center; }
-  #viewport canvas { display: inline-block; margin: 8px auto; background: #fff; }
-  #viewport .msg { color: #fff; padding: 40px; }
-  #entryWrap { flex: 1; overflow: auto; padding: 6px 10px; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border: 1px solid var(--line); padding: 2px; text-align: left; vertical-align: top; }
-  th { background: #f1f3f4; font-weight: bold; position: sticky; top: 0; }
-  td input { width: 100%; border: 0; padding: 3px; font: inherit; background: transparent; }
-  td input:focus { outline: 2px solid var(--accent); }
-  td.num input { text-align: right; }
-  td.check { font-size: 11px; color: var(--muted); max-width: 120px; }
-  tr.warn td { background: var(--warn); }
-  tfoot td { font-weight: bold; background: #f8f9fa; text-align: right; }
-  #results { max-height: 38%; overflow: auto; border-top: 1px solid var(--line); padding: 6px 10px; }
-  #results td.s-ok { background: var(--ok); } #results td.s-check { background: var(--warn); } #results td.s-bad { background: var(--bad); }
-  .muted { color: var(--muted); }
-  #status { color: var(--muted); white-space: nowrap; }
-  #status.err { color: #c5221f; white-space: normal; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.45 Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+         display: flex; flex-direction: column; -webkit-font-smoothing: antialiased; }
+  button, select, input { font: inherit; color: inherit; }
+  svg { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- top bar ---------- */
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .logo { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: #fff;
+          background: linear-gradient(135deg, #4c6ef5, #3b5bdb 55%, #364fc7); box-shadow: 0 2px 6px rgba(59,91,219,.35); }
+  .picker { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .select { flex: 1; min-width: 0; height: 34px; padding: 0 34px 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: #fff
+            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7385' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center;
+            appearance: none; -webkit-appearance: none; cursor: pointer; text-overflow: ellipsis; }
+  .select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .icon-btn { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 10px; background: #fff; cursor: pointer; color: var(--muted); transition: .15s; }
+  .icon-btn:hover { color: var(--ink); border-color: var(--faint); background: #fafbfd; }
+  .switch { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); cursor: pointer; white-space: nowrap; user-select: none; }
+  .switch input { display: none; }
+  .switch .track { width: 32px; height: 18px; border-radius: 99px; background: var(--line-strong); position: relative; transition: .2s; }
+  .switch .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: .2s; }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track::after { left: 16px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 99px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  #status { background: var(--accent-soft); color: var(--accent); }
+  #status.busy::before { content: ""; width: 10px; height: 10px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+
+  .banner { display: none; margin: 12px 16px 0; padding: 10px 14px; border-radius: 10px; background: var(--bad-soft); color: var(--bad); border: 1px solid #f6c9ce; align-items: flex-start; gap: 10px; }
+  .banner.show { display: flex; }
+  .banner span { flex: 1; }
+  .banner button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0; }
+
+  /* ---------- layout ---------- */
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 14px; padding: 14px 16px 16px; min-height: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+  .card-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .card-title { font-weight: 600; font-size: 14px; }
+  .sub { color: var(--muted); font-size: 12px; }
+  kbd { font: 600 11px Inter, sans-serif; padding: 1px 6px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 5px; background: #fafbfd; color: var(--muted); }
+  .spacer { flex: 1; }
+
+  /* ---------- photo viewer ---------- */
+  .seg { display: inline-flex; gap: 4px; padding: 3px; background: var(--bg); border-radius: 10px; flex-wrap: wrap; }
+  .seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 8px; cursor: pointer; color: var(--muted); font-weight: 500; transition: .15s; }
+  .seg button:hover { color: var(--ink); }
+  .seg button.active { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(16,24,40,.12); }
+  .viewer { position: relative; flex: 1; min-height: 0; background: var(--viewer);
+            background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px); background-size: 18px 18px; }
+  #viewport { position: absolute; inset: 0; overflow: auto; text-align: center; padding: 18px 18px 70px; }
+  #viewport canvas { display: block; margin: 0 auto; border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,.45); background: #fff; }
+  .empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #aab1c2; }
+  .empty svg { width: 34px; height: 34px; stroke-width: 1.5; opacity: .8; }
+  .spinner { width: 26px; height: 26px; border: 3px solid rgba(255,255,255,.2); border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toolbar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 5px;
+             background: rgba(24,28,38,.82); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; color: #e8ebf2; box-shadow: 0 8px 24px rgba(0,0,0,.35); white-space: nowrap; }
+  .toolbar button, .toolbar a { height: 30px; min-width: 30px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+             border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; text-decoration: none; }
+  .toolbar button:hover, .toolbar a:hover { background: rgba(255,255,255,.1); }
+  .toolbar .sep { width: 1px; height: 18px; background: rgba(255,255,255,.15); margin: 0 4px; }
+  #zoomLbl { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; font-size: 12px; color: #c7cddb; }
+  .toolbar .switch { color: #e8ebf2; padding: 0 8px; }
+  .toolbar .switch .track { background: rgba(255,255,255,.25); }
+
+  /* ---------- entries ---------- */
+  .btn { height: 32px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 9px; border: 1px solid var(--line-strong); background: #fff; cursor: pointer; font-weight: 600; transition: .15s; white-space: nowrap; }
+  .btn:hover { background: #fafbfd; border-color: var(--faint); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 1px 2px rgba(59,91,219,.3); }
+  .btn.primary:hover { background: #364fc7; }
+  .btn:disabled { opacity: .55; cursor: default; }
+  #entryWrap { flex: 1; overflow: auto; min-height: 0; }
+  table.grid { border-collapse: separate; border-spacing: 0; width: 100%; table-layout: fixed; }
+  .grid th { position: sticky; top: 0; z-index: 1; background: #fafbfd; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+             text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .grid th.num { text-align: right; }
+  .grid td { padding: 3px 3px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .grid td.idx { width: 30px; text-align: center; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; border-left: 3px solid transparent; }
+  .grid tr:hover td { background: #fafbff; }
+  .grid input { width: 100%; height: 30px; padding: 0 7px; border: 1px solid transparent; border-radius: 7px; background: transparent; transition: .12s; }
+  .grid input:hover { border-color: var(--line); }
+  .grid input:focus { outline: none; background: #fff; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .grid td.num input { text-align: right; font-variant-numeric: tabular-nums; }
+  .grid td.check { text-align: center; color: var(--warn); }
+  .grid td.check span { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--warn-soft); font-weight: 700; cursor: help; }
+  .grid input::placeholder { color: #c3c8d4; }
+  .grid tr.warn td { background: #fffaf0; }
+  .grid tr.warn td.idx { border-left-color: #f2a43a; color: var(--warn); }
+  .grid .del { width: 26px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 7px; background: none; color: var(--faint); cursor: pointer; opacity: 0; transition: .12s; }
+  .grid tr:hover .del, .grid .del:focus { opacity: 1; }
+  .grid .del:hover { background: var(--bad-soft); color: var(--bad); }
+  .add-line { margin: 8px; width: calc(100% - 16px); height: 34px; border: 1px dashed var(--line-strong); border-radius: 9px; background: none; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; }
+  .add-line:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+  .totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); background: #fafbfd; }
+  .stat { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; }
+  .stat .k { font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .stat .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* ---------- results ---------- */
+  #results { max-height: 40%; overflow: auto; border-top: 1px solid var(--line); padding: 12px 14px; }
+  .hint { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .summary { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  .s-ok { background: var(--ok-soft); color: var(--ok); }
+  .s-check { background: var(--warn-soft); color: var(--warn); }
+  .s-bad { background: var(--bad-soft); color: var(--bad); }
+  .res { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; }
+  .res .f { font-weight: 600; }
+  .res .f small { color: var(--faint); font-weight: 500; margin-left: 4px; }
+  .res .vals { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; grid-column: 1 / -1; }
+  .res .vals b { color: var(--ink); font-weight: 600; }
+  .res .note { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+  .res .pill { height: 22px; font-size: 11px; }
 </style>
 </head>
 <body>
-<header>
-  <button id="prev" title="Newer">◀</button>
-  <select id="subs"></select>
-  <button id="next" title="Older">▶</button>
-  <label><input type="checkbox" id="pendingOnly" checked> Pending only</label>
-  <span id="status">Loading…</span>
-</header>
+<div class="topbar">
+  <div class="brand">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2"/><path d="M7 12h10"/></svg></div>
+    Logbook Scanner
+  </div>
+  <div class="picker">
+    <button class="icon-btn" id="prev" title="Newer submission"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+    <select class="select" id="subs"></select>
+    <button class="icon-btn" id="next" title="Older submission"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+  </div>
+  <label class="switch"><input type="checkbox" id="pendingOnly" checked><span class="track"></span>Pending only</label>
+  <span class="pill busy" id="status">Loading</span>
+</div>
+<div class="banner" id="banner">
+  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+  <span id="bannerText"></span>
+  <button id="bannerClose" title="Dismiss"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+</div>
+
 <main>
-  <section id="left">
-    <div class="bar tabs" id="pages"></div>
-    <div class="bar">
-      <button id="zoomOut">−</button><span id="zoomLbl">100%</span><button id="zoomIn">+</button>
-      <button id="rotate">⟳ Rotate</button>
-      <label><input type="checkbox" id="scanLook" checked> Scan look</label>
-      <a id="openDrive" href="#" target="_blank" class="muted">Open in Drive</a>
+  <section class="card">
+    <div class="card-head">
+      <div class="seg" id="pages"></div>
+      <span class="spacer"></span>
+      <span class="sub" id="pageInfo"></span>
     </div>
-    <div id="viewport"><div class="msg">Pick a submission.</div></div>
+    <div class="viewer">
+      <div id="viewport"><div class="empty"><div class="spinner"></div>Loading submissions…</div></div>
+      <div class="toolbar">
+        <button id="zoomOut" title="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+        <span id="zoomLbl">100%</span>
+        <button id="zoomIn" title="Zoom in"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+        <span class="sep"></span>
+        <button id="rotate" title="Rotate 90°"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Rotate</button>
+        <span class="sep"></span>
+        <label class="switch" title="Grayscale, higher contrast"><input type="checkbox" id="scanLook" checked><span class="track"></span>Scan look</label>
+        <span class="sep"></span>
+        <a id="openDrive" href="#" target="_blank" title="Open the original in Google Drive"><svg viewBox="0 0 24 24"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+      </div>
+    </div>
   </section>
-  <section id="right">
-    <div class="bar">
-      <strong>Type what the logbook says</strong>
-      <span class="muted">Enter = next cell</span>
-      <span style="flex:1"></span>
-      <button id="addRow">+ Row</button>
-      <button id="save" class="primary">Save &amp; compare</button>
+
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <div class="card-title">Logbook entries</div>
+        <div class="sub">Type what the page says · <kbd>Enter</kbd> next cell</div>
+      </div>
+      <span class="spacer"></span>
+      <button class="btn primary" id="save"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Save &amp; compare</button>
     </div>
     <div id="entryWrap">
-      <table>
+      <table class="grid">
+        <colgroup><col style="width:30px"><col style="width:84px"><col><col style="width:68px">
+          <col style="width:74px"><col style="width:74px"><col style="width:80px"><col style="width:72px"><col style="width:30px"><col style="width:32px"></colgroup>
         <thead><tr>
-          <th style="width:118px">DATE</th><th>NAME</th><th style="width:70px">CI#</th>
-          <th>CASH</th><th>CARD</th><th>VAT SALE</th><th>12% VAT</th><th>Check</th><th></th>
+          <th></th><th>Date</th><th>Name</th><th>CI#</th>
+          <th class="num">Cash</th><th class="num">Card</th><th class="num">VAT sale</th><th class="num">12% VAT</th><th></th><th></th>
         </tr></thead>
         <tbody id="rows"></tbody>
-        <tfoot><tr><td colspan="3">Totals</td><td id="tCash"></td><td id="tCard"></td><td id="tVs"></td><td id="tVat"></td><td colspan="2"></td></tr></tfoot>
       </table>
+      <button class="add-line" id="addRow"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add row</button>
     </div>
-    <div id="results" class="muted">Comparison with Spreadsheet 2 appears here after saving.</div>
+    <div class="totals">
+      <div class="stat"><div class="k">Cash</div><div class="v" id="tCash">0.00</div></div>
+      <div class="stat"><div class="k">Card</div><div class="v" id="tCard">0.00</div></div>
+      <div class="stat"><div class="k">VAT sale</div><div class="v" id="tVs">0.00</div></div>
+      <div class="stat"><div class="k">12% VAT</div><div class="v" id="tVat">0.00</div></div>
+    </div>
+    <div id="results"></div>
   </section>
 </main>
 
@@ -83,13 +208,27 @@
   const NUM = [3, 4, 5, 6];
   const S = { all: [], list: [], cur: null, pages: [], page: 0, cache: {}, zoom: 1, rot: 0, vatRate: 0.12, tol: 1 };
   const $ = id => document.getElementById(id);
+  const ICON = {
+    img: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>',
+    del: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+    info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+  };
+  const HINT = '<div class="hint">' + ICON.info + 'Comparison with Spreadsheet 2 appears here after you save.</div>';
 
   function esc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function num(v) { const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
-  function status(msg, isErr) { const el = $('status'); el.textContent = msg; el.className = isErr ? 'err' : ''; }
+  function money(n) { return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function status(msg, isErr, busy) {
+    const el = $('status');
+    el.textContent = isErr ? 'Error' : msg;
+    el.className = 'pill' + (busy ? ' busy' : '') + (isErr ? ' s-bad' : '');
+    $('banner').classList.toggle('show', !!isErr);
+    if (isErr) $('bannerText').textContent = msg;
+  }
   function call(fn, args, ok) {
     google.script.run.withSuccessHandler(ok).withFailureHandler(e => status(e.message || e, true))[fn].apply(null, args);
   }
+  function viewerMsg(html) { $('viewport').innerHTML = '<div class="empty">' + html + '</div>'; }
 
   // ---- submissions ----
   function loadSubs(keepKey) {
@@ -101,10 +240,13 @@
   function fillSelect(keepKey) {
     S.list = $('pendingOnly').checked ? S.all.filter(s => !s.done || s.key === keepKey) : S.all;
     $('subs').innerHTML = S.list.map((s, i) =>
-      `<option value="${i}">${s.done ? '✓ ' : '• '}Row ${s.row} · ${esc(s.submitted)} · ${esc(s.who)}</option>`).join('');
+      `<option value="${i}">${s.done ? '✓' : '○'}  Row ${s.row}  ·  ${esc(s.submitted)}${s.who ? '  ·  ' + esc(s.who) : ''}</option>`).join('');
     const pending = S.all.filter(s => !s.done).length;
-    status(pending + ' pending of ' + S.all.length);
-    if (!S.list.length) { $('viewport').innerHTML = '<div class="msg">Nothing to review.</div>'; return; }
+    status(pending + ' pending · ' + S.all.length + ' total');
+    if (!S.list.length) {
+      viewerMsg(ICON.img + (S.all.length ? 'All caught up. Nothing pending.' : 'No submissions with photos yet.'));
+      return;
+    }
     const idx = Math.max(0, S.list.findIndex(s => s.key === keepKey));
     $('subs').value = idx;
     if (!S.cur || S.cur.key !== S.list[idx].key) pick(idx);
@@ -114,10 +256,11 @@
     S.pages = S.cur.journal.map((id, n) => ({ id, label: 'Journal ' + (n + 1) }))
       .concat(S.cur.receipt.map((id, n) => ({ id, label: 'Extra page ' + (n + 1) })));
     $('pages').innerHTML = S.pages.map((p, n) => `<button data-n="${n}">${p.label}</button>`).join('');
+    $('pageInfo').textContent = 'Row ' + S.cur.row + (S.cur.done ? ' · saved' : '');
     S.rot = 0;
     showPage(0);
     $('rows').innerHTML = '';
-    $('results').innerHTML = '<span class="muted">Comparison with Spreadsheet 2 appears here after saving.</span>';
+    $('results').innerHTML = HINT;
     call('getEntries', [S.cur.key], rows => {
       (rows.length ? rows : [['', '', '', '', '', '', '']]).forEach(r => addRow(r));
       totals();
@@ -131,7 +274,7 @@
     const p = S.pages[n];
     if (!p) return;
     if (S.cache[p.id]) return draw();
-    $('viewport').innerHTML = '<div class="msg">Loading photo…</div>';
+    viewerMsg('<div class="spinner"></div>Loading photo…');
     call('getImage', [p.id], info => {
       S.cache[p.id] = info;
       if (!info.dataUrl) return draw();
@@ -146,7 +289,7 @@
     $('openDrive').href = info.url;
     $('zoomLbl').textContent = Math.round(S.zoom * 100) + '%';
     if (!info.img) {
-      $('viewport').innerHTML = `<div class="msg">${esc(info.error || 'Loading…')}</div>`;
+      viewerMsg(info.error ? ICON.img + esc(info.error) : '<div class="spinner"></div>Loading photo…');
       return;
     }
     const img = info.img, side = S.rot % 180 !== 0;
@@ -155,7 +298,7 @@
     c.height = side ? img.width : img.height;
     const ctx = c.getContext('2d');
     // "Scan look": flatten colour, boost contrast and whiten the paper.
-    ctx.filter = $('scanLook').checked ? 'grayscale(1) contrast(1.8) brightness(1.15)' : 'none';
+    ctx.filter = $('scanLook').checked ? 'grayscale(1) contrast(1.5) brightness(1.1)' : 'none';
     ctx.translate(c.width / 2, c.height / 2);
     ctx.rotate(S.rot * Math.PI / 180);
     ctx.drawImage(img, -img.width / 2, -img.height / 2);
@@ -169,17 +312,24 @@
     const prev = $('rows').lastElementChild;
     values = values || ['', '', '', '', '', '', ''];
     if (!values[0] && prev) values[0] = prev.querySelector('input').value;  // carry the date down
+    values[0] = shortDate(values[0]);
     const tr = document.createElement('tr');
-    tr.innerHTML = FIELDS.map((f, i) => {
-      const type = i === 0 ? 'date' : 'text';
-      const extra = NUM.includes(i) ? ' inputmode="decimal"' : '';
-      return `<td class="${NUM.includes(i) ? 'num' : ''}"><input type="${type}"${extra} value="${esc(values[i])}"></td>`;
-    }).join('') + '<td class="check"></td><td><button title="Delete row" tabindex="-1">✕</button></td>';
-    tr.querySelector('button').onclick = () => { tr.remove(); totals(); };
+    tr.innerHTML = '<td class="idx"></td>' + FIELDS.map((f, i) => {
+      const extra = i === 0 ? ' placeholder="mm/dd/yy"' : NUM.includes(i) ? ' inputmode="decimal" placeholder="0.00"' : '';
+      return `<td class="${NUM.includes(i) ? 'num' : ''}"><input type="text"${extra} value="${esc(values[i])}" title="${esc(values[i])}"></td>`;
+    }).join('') + `<td class="check"></td><td><button class="del" title="Delete row" tabindex="-1">${ICON.del}</button></td>`;
+    tr.querySelector('.del').onclick = () => { tr.remove(); renumber(); totals(); };
     $('rows').appendChild(tr);
+    renumber();
     checkRow(tr);
     if (focus) tr.querySelectorAll('input')[prev ? 1 : 0].focus();
   }
+  /** 2026-10-12 → 10/12/26, the way dates are written in the logbook. */
+  function shortDate(v) {
+    const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? m[2] + '/' + m[3] + '/' + m[1].slice(2) : v;
+  }
+  function renumber() { [...$('rows').children].forEach((tr, i) => tr.querySelector('.idx').textContent = i + 1); }
   function rowValues(tr) { return [...tr.querySelectorAll('input')].map(i => i.value.trim()); }
   function checkRow(tr) {
     const v = rowValues(tr), problems = [];
@@ -190,12 +340,12 @@
       if (paid && Math.abs(paid - gross) > S.tol) problems.push('paid ' + paid.toFixed(2) + ' ≠ ' + gross.toFixed(2));
     }
     tr.classList.toggle('warn', problems.length > 0);
-    tr.querySelector('.check').textContent = problems.join('; ');
+    tr.querySelector('.check').innerHTML = problems.length ? `<span title="${esc(problems.join(' · '))}">!</span>` : '';
   }
   function totals() {
     const sums = [0, 0, 0, 0];
     [...$('rows').children].forEach(tr => { const v = rowValues(tr); NUM.forEach((c, k) => sums[k] += num(v[c])); });
-    ['tCash', 'tCard', 'tVs', 'tVat'].forEach((id, k) => $(id).textContent = sums[k].toFixed(2));
+    ['tCash', 'tCard', 'tVs', 'tVat'].forEach((id, k) => $(id).textContent = money(sums[k]));
   }
   $('rows').addEventListener('input', e => { checkRow(e.target.closest('tr')); totals(); });
   $('rows').addEventListener('keydown', e => {
@@ -211,11 +361,12 @@
     if (!S.cur) return;
     const rows = [...$('rows').children].map(rowValues);
     $('save').disabled = true;
-    status('Saving…');
+    status('Saving', false, true);
     google.script.run
       .withSuccessHandler(res => {
         $('save').disabled = false;
         S.cur.done = true;
+        $('pageInfo').textContent = 'Row ' + S.cur.row + ' · saved';
         showResults(res);
         loadSubs(S.cur.key);
       })
@@ -223,11 +374,22 @@
       .saveEntries(S.cur.key, S.cur.row, rows);
   }
   function showResults(res) {
-    if (!res.length) { $('results').innerHTML = 'Saved. No columns to compare (check the column matching in Scanner Config).'; return; }
+    if (!res.length) {
+      $('results').innerHTML = '<div class="hint">' + ICON.info + 'Saved. No columns to compare. Check the column matching in Scanner Config.</div>';
+      return;
+    }
     const cls = s => s.indexOf('✅') === 0 ? 's-ok' : s.indexOf('⚠') === 0 ? 's-check' : 's-bad';
-    $('results').innerHTML = '<table><thead><tr><th>Date</th><th>Field</th><th>Logbook</th><th>Spreadsheet 2</th><th>Diff</th><th>Status</th><th>Note</th></tr></thead><tbody>' +
-      res.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[3])} <span class="muted">(${esc(r[1])})</span></td><td>${esc(r[4])}</td><td>${esc(r[5])}</td><td>${esc(r[6])}</td><td class="${cls(r[7])}">${esc(r[7])}</td><td>${esc(r[8])}</td></tr>`).join('') +
-      '</tbody></table>';
+    const count = c => res.filter(r => cls(r[7]) === c).length;
+    const fmt = v => typeof v === 'number' ? money(v) : esc(v);
+    $('results').innerHTML =
+      '<div class="summary"><span class="card-title" style="margin-right:6px">Comparison</span>' +
+      `<span class="pill s-ok">✓ ${count('s-ok')} match</span><span class="pill s-check">! ${count('s-check')} check</span><span class="pill s-bad">✕ ${count('s-bad')} mismatch</span></div>` +
+      res.map(r => `<div class="res">
+          <div class="f">${esc(r[3])}<small>col ${esc(r[1])} · ${esc(r[0])}</small></div>
+          <span class="pill ${cls(r[7])}">${esc(String(r[7]).replace(/^\S+\s/, ''))}</span>
+          <div class="vals">Logbook <b>${fmt(r[4]) || '—'}</b> · Spreadsheet 2 <b>${fmt(r[5]) || '—'}</b>${r[6] !== '' && r[6] !== 0 ? ' · Diff <b>' + fmt(r[6]) + '</b>' : ''}</div>
+          ${r[8] ? `<div class="note">${esc(r[8])}</div>` : ''}
+        </div>`).join('');
   }
 
   // ---- wiring ----
@@ -235,13 +397,15 @@
   $('prev').onclick = () => { const i = +$('subs').value; if (i > 0) { $('subs').value = i - 1; pick(i - 1); } };
   $('next').onclick = () => { const i = +$('subs').value; if (i < S.list.length - 1) { $('subs').value = i + 1; pick(i + 1); } };
   $('pendingOnly').onchange = () => fillSelect(S.cur && S.cur.key);
-  $('pages').onclick = e => { if (e.target.dataset.n) showPage(+e.target.dataset.n); };
+  $('pages').onclick = e => { const b = e.target.closest('button'); if (b) showPage(+b.dataset.n); };
   $('zoomIn').onclick = () => { S.zoom = Math.min(4, S.zoom * 1.25); draw(); };
   $('zoomOut').onclick = () => { S.zoom = Math.max(0.25, S.zoom / 1.25); draw(); };
   $('rotate').onclick = () => { S.rot = (S.rot + 90) % 360; draw(); };
   $('scanLook').onchange = draw;
   $('addRow').onclick = () => { addRow(null, true); totals(); };
   $('save').onclick = save;
+  $('bannerClose').onclick = () => $('banner').classList.remove('show');
+  $('results').innerHTML = HINT;
   loadSubs();
 </script>
 </body>
