@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root { --line: #dadce0; --muted: #5f6368; --accent: #1a73e8; --ok: #d9f2d9; --warn: #fff2cc; --bad: #f8d7da; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.4 Arial, sans-serif; color: #202124; height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  header select { flex: 1; padding: 4px; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #left { flex: 1.25; display: flex; flex-direction: column; border-right: 1px solid var(--line); min-width: 0; }
+  #right { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  .tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button { padding: 4px 10px; border: 1px solid var(--line); background: #fff; border-radius: 4px; cursor: pointer; font: inherit; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  #viewport { flex: 1; overflow: auto; background: #3c4043; text-align: center; }
+  #viewport canvas { display: inline-block; margin: 8px auto; background: #fff; }
+  #viewport .msg { color: #fff; padding: 40px; }
+  #entryWrap { flex: 1; overflow: auto; padding: 6px 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid var(--line); padding: 2px; text-align: left; vertical-align: top; }
+  th { background: #f1f3f4; font-weight: bold; position: sticky; top: 0; }
+  td input { width: 100%; border: 0; padding: 3px; font: inherit; background: transparent; }
+  td input:focus { outline: 2px solid var(--accent); }
+  td.num input { text-align: right; }
+  td.check { font-size: 11px; color: var(--muted); max-width: 120px; }
+  tr.warn td { background: var(--warn); }
+  tfoot td { font-weight: bold; background: #f8f9fa; text-align: right; }
+  #results { max-height: 38%; overflow: auto; border-top: 1px solid var(--line); padding: 6px 10px; }
+  #results td.s-ok { background: var(--ok); } #results td.s-check { background: var(--warn); } #results td.s-bad { background: var(--bad); }
+  .muted { color: var(--muted); }
+  #status { color: var(--muted); white-space: nowrap; }
+  #status.err { color: #c5221f; white-space: normal; }
+</style>
+</head>
+<body>
+<header>
+  <button id="prev" title="Newer">◀</button>
+  <select id="subs"></select>
+  <button id="next" title="Older">▶</button>
+  <label><input type="checkbox" id="pendingOnly" checked> Pending only</label>
+  <span id="status">Loading…</span>
+</header>
+<main>
+  <section id="left">
+    <div class="bar tabs" id="pages"></div>
+    <div class="bar">
+      <button id="zoomOut">−</button><span id="zoomLbl">100%</span><button id="zoomIn">+</button>
+      <button id="rotate">⟳ Rotate</button>
+      <label><input type="checkbox" id="scanLook" checked> Scan look</label>
+      <a id="openDrive" href="#" target="_blank" class="muted">Open in Drive</a>
+    </div>
+    <div id="viewport"><div class="msg">Pick a submission.</div></div>
+  </section>
+  <section id="right">
+    <div class="bar">
+      <strong>Type what the logbook says</strong>
+      <span class="muted">Enter = next cell</span>
+      <span style="flex:1"></span>
+      <button id="addRow">+ Row</button>
+      <button id="save" class="primary">Save &amp; compare</button>
+    </div>
+    <div id="entryWrap">
+      <table>
+        <thead><tr>
+          <th style="width:118px">DATE</th><th>NAME</th><th style="width:70px">CI#</th>
+          <th>CASH</th><th>CARD</th><th>VAT SALE</th><th>12% VAT</th><th>Check</th><th></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+        <tfoot><tr><td colspan="3">Totals</td><td id="tCash"></td><td id="tCard"></td><td id="tVs"></td><td id="tVat"></td><td colspan="2"></td></tr></tfoot>
+      </table>
+    </div>
+    <div id="results" class="muted">Comparison with Spreadsheet 2 appears here after saving.</div>
+  </section>
+</main>
+
+<script>
+  const FIELDS = ['DATE', 'NAME', 'CI#', 'CASH', 'CARD', 'VAT SALE', '12% VAT'];
+  const NUM = [3, 4, 5, 6];
+  const S = { all: [], list: [], cur: null, pages: [], page: 0, cache: {}, zoom: 1, rot: 0, vatRate: 0.12, tol: 1 };
+  const $ = id => document.getElementById(id);
+
+  function esc(v) { return String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function num(v) { const n = parseFloat(String(v).replace(/[^0-9.\-]/g, '')); return isNaN(n) ? 0 : n; }
+  function status(msg, isErr) { const el = $('status'); el.textContent = msg; el.className = isErr ? 'err' : ''; }
+  function call(fn, args, ok) {
+    google.script.run.withSuccessHandler(ok).withFailureHandler(e => status(e.message || e, true))[fn].apply(null, args);
+  }
+
+  // ---- submissions ----
+  function loadSubs(keepKey) {
+    call('getPanelData', [], data => {
+      S.all = data.submissions; S.vatRate = data.vatRate; S.tol = data.tolerance;
+      fillSelect(keepKey);
+    });
+  }
+  function fillSelect(keepKey) {
+    S.list = $('pendingOnly').checked ? S.all.filter(s => !s.done || s.key === keepKey) : S.all;
+    $('subs').innerHTML = S.list.map((s, i) =>
+      `<option value="${i}">${s.done ? '✓ ' : '• '}Row ${s.row} · ${esc(s.submitted)} · ${esc(s.who)}</option>`).join('');
+    const pending = S.all.filter(s => !s.done).length;
+    status(pending + ' pending of ' + S.all.length);
+    if (!S.list.length) { $('viewport').innerHTML = '<div class="msg">Nothing to review.</div>'; return; }
+    const idx = Math.max(0, S.list.findIndex(s => s.key === keepKey));
+    $('subs').value = idx;
+    if (!S.cur || S.cur.key !== S.list[idx].key) pick(idx);
+  }
+  function pick(i) {
+    S.cur = S.list[i];
+    S.pages = S.cur.journal.map((id, n) => ({ id, label: 'Journal ' + (n + 1) }))
+      .concat(S.cur.receipt.map((id, n) => ({ id, label: 'Extra page ' + (n + 1) })));
+    $('pages').innerHTML = S.pages.map((p, n) => `<button data-n="${n}">${p.label}</button>`).join('');
+    S.rot = 0;
+    showPage(0);
+    $('rows').innerHTML = '';
+    $('results').innerHTML = '<span class="muted">Comparison with Spreadsheet 2 appears here after saving.</span>';
+    call('getEntries', [S.cur.key], rows => {
+      (rows.length ? rows : [['', '', '', '', '', '', '']]).forEach(r => addRow(r));
+      totals();
+    });
+  }
+
+  // ---- photo viewer ----
+  function showPage(n) {
+    S.page = n;
+    [...$('pages').children].forEach((b, i) => b.classList.toggle('active', i === n));
+    const p = S.pages[n];
+    if (!p) return;
+    if (S.cache[p.id]) return draw();
+    $('viewport').innerHTML = '<div class="msg">Loading photo…</div>';
+    call('getImage', [p.id], info => {
+      S.cache[p.id] = info;
+      if (!info.dataUrl) return draw();
+      const img = new Image();
+      img.onload = () => { info.img = img; if (S.pages[S.page] === p) draw(); };
+      img.src = info.dataUrl;
+    });
+  }
+  function draw() {
+    const p = S.pages[S.page], info = p && S.cache[p.id];
+    if (!info) return;
+    $('openDrive').href = info.url;
+    $('zoomLbl').textContent = Math.round(S.zoom * 100) + '%';
+    if (!info.img) {
+      $('viewport').innerHTML = `<div class="msg">${esc(info.error || 'Loading…')}</div>`;
+      return;
+    }
+    const img = info.img, side = S.rot % 180 !== 0;
+    const c = document.createElement('canvas');
+    c.width = side ? img.height : img.width;
+    c.height = side ? img.width : img.height;
+    const ctx = c.getContext('2d');
+    // "Scan look": flatten colour, boost contrast and whiten the paper.
+    ctx.filter = $('scanLook').checked ? 'grayscale(1) contrast(1.8) brightness(1.15)' : 'none';
+    ctx.translate(c.width / 2, c.height / 2);
+    ctx.rotate(S.rot * Math.PI / 180);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    c.style.width = (S.zoom * 100) + '%';
+    $('viewport').innerHTML = '';
+    $('viewport').appendChild(c);
+  }
+
+  // ---- entry grid ----
+  function addRow(values, focus) {
+    const prev = $('rows').lastElementChild;
+    values = values || ['', '', '', '', '', '', ''];
+    if (!values[0] && prev) values[0] = prev.querySelector('input').value;  // carry the date down
+    const tr = document.createElement('tr');
+    tr.innerHTML = FIELDS.map((f, i) => {
+      const type = i === 0 ? 'date' : 'text';
+      const extra = NUM.includes(i) ? ' inputmode="decimal"' : '';
+      return `<td class="${NUM.includes(i) ? 'num' : ''}"><input type="${type}"${extra} value="${esc(values[i])}"></td>`;
+    }).join('') + '<td class="check"></td><td><button title="Delete row" tabindex="-1">✕</button></td>';
+    tr.querySelector('button').onclick = () => { tr.remove(); totals(); };
+    $('rows').appendChild(tr);
+    checkRow(tr);
+    if (focus) tr.querySelectorAll('input')[prev ? 1 : 0].focus();
+  }
+  function rowValues(tr) { return [...tr.querySelectorAll('input')].map(i => i.value.trim()); }
+  function checkRow(tr) {
+    const v = rowValues(tr), problems = [];
+    if (v[5] !== '') {
+      const exp = num(v[5]) * S.vatRate;
+      if (v[6] !== '' && Math.abs(num(v[6]) - exp) > S.tol) problems.push('VAT ≈ ' + exp.toFixed(2));
+      const paid = num(v[3]) + num(v[4]), gross = num(v[5]) + num(v[6]);
+      if (paid && Math.abs(paid - gross) > S.tol) problems.push('paid ' + paid.toFixed(2) + ' ≠ ' + gross.toFixed(2));
+    }
+    tr.classList.toggle('warn', problems.length > 0);
+    tr.querySelector('.check').textContent = problems.join('; ');
+  }
+  function totals() {
+    const sums = [0, 0, 0, 0];
+    [...$('rows').children].forEach(tr => { const v = rowValues(tr); NUM.forEach((c, k) => sums[k] += num(v[c])); });
+    ['tCash', 'tCard', 'tVs', 'tVat'].forEach((id, k) => $(id).textContent = sums[k].toFixed(2));
+  }
+  $('rows').addEventListener('input', e => { checkRow(e.target.closest('tr')); totals(); });
+  $('rows').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+    e.preventDefault();
+    const inputs = [...$('rows').querySelectorAll('input')];
+    const i = inputs.indexOf(e.target);
+    if (i === inputs.length - 1) addRow(null, true); else inputs[i + 1].focus();
+  });
+
+  // ---- save & results ----
+  function save() {
+    if (!S.cur) return;
+    const rows = [...$('rows').children].map(rowValues);
+    $('save').disabled = true;
+    status('Saving…');
+    google.script.run
+      .withSuccessHandler(res => {
+        $('save').disabled = false;
+        S.cur.done = true;
+        showResults(res);
+        loadSubs(S.cur.key);
+      })
+      .withFailureHandler(e => { $('save').disabled = false; status(e.message || e, true); })
+      .saveEntries(S.cur.key, S.cur.row, rows);
+  }
+  function showResults(res) {
+    if (!res.length) { $('results').innerHTML = 'Saved. No columns to compare (check the column matching in Scanner Config).'; return; }
+    const cls = s => s.indexOf('✅') === 0 ? 's-ok' : s.indexOf('⚠') === 0 ? 's-check' : 's-bad';
+    $('results').innerHTML = '<table><thead><tr><th>Date</th><th>Field</th><th>Logbook</th><th>Spreadsheet 2</th><th>Diff</th><th>Status</th><th>Note</th></tr></thead><tbody>' +
+      res.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[3])} <span class="muted">(${esc(r[1])})</span></td><td>${esc(r[4])}</td><td>${esc(r[5])}</td><td>${esc(r[6])}</td><td class="${cls(r[7])}">${esc(r[7])}</td><td>${esc(r[8])}</td></tr>`).join('') +
+      '</tbody></table>';
+  }
+
+  // ---- wiring ----
+  $('subs').onchange = e => pick(+e.target.value);
+  $('prev').onclick = () => { const i = +$('subs').value; if (i > 0) { $('subs').value = i - 1; pick(i - 1); } };
+  $('next').onclick = () => { const i = +$('subs').value; if (i < S.list.length - 1) { $('subs').value = i + 1; pick(i + 1); } };
+  $('pendingOnly').onchange = () => fillSelect(S.cur && S.cur.key);
+  $('pages').onclick = e => { if (e.target.dataset.n) showPage(+e.target.dataset.n); };
+  $('zoomIn').onclick = () => { S.zoom = Math.min(4, S.zoom * 1.25); draw(); };
+  $('zoomOut').onclick = () => { S.zoom = Math.max(0.25, S.zoom / 1.25); draw(); };
+  $('rotate').onclick = () => { S.rot = (S.rot + 90) % 360; draw(); };
+  $('scanLook').onchange = draw;
+  $('addRow').onclick = () => { addRow(null, true); totals(); };
+  $('save').onclick = save;
+  loadSubs();
+</script>
+</body>
+</html>

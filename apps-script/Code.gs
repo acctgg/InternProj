@@ -1,0 +1,150 @@
+/**
+ * Logbook Scanner: menu and the server functions the Scanner panel calls.
+ */
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Scanner')
+    .addItem('Open scanner', 'openScanner')
+    .addItem('Re-run comparison', 'runComparisonFromMenu')
+    .addSeparator()
+    .addItem('Set up / refresh column matching', 'setupScanner')
+    .addToUi();
+}
+
+function openScanner() {
+  const html = HtmlService.createHtmlOutputFromFile('Panel').setWidth(1280).setHeight(780);
+  SpreadsheetApp.getUi().showModelessDialog(html, 'Logbook Scanner');
+}
+
+function runComparisonFromMenu() {
+  const n = runComparison_().length;
+  SpreadsheetApp.getActive().getSheetByName(SHEETS.RESULTS).activate();
+  SpreadsheetApp.getActive().toast(n + ' comparison rows written.', 'Scanner');
+}
+
+/** Form submissions that have at least one photo (newest first), plus the settings the panel needs. */
+function getPanelData() {
+  const s = getSettings_();
+  const sh = getResponsesSheet_(s);
+  const last = sh.getLastRow();
+  const result = { vatRate: s.vatRate, tolerance: s.tolerance, submissions: [] };
+  if (last < 2) return result;
+  const jc = colToNum_(s.journalCol), rc = colToNum_(s.receiptCol);
+  const vals = sh.getRange(2, 1, last - 1, Math.max(jc, rc, 2)).getDisplayValues();
+  const done = {};
+  readEntries_().forEach(e => { done[e.submission] = true; });
+  result.submissions = vals.map((r, i) => {
+    const key = (i + 2) + '|' + r[0];
+    return {
+      key: key,
+      row: i + 2,
+      submitted: r[0],
+      who: r[1],
+      journal: fileIds_(r[jc - 1]),
+      receipt: fileIds_(r[rc - 1]),
+      done: !!done[key],
+    };
+  }).filter(x => x.journal.length || x.receipt.length).reverse();
+  return result;
+}
+
+/** Drive file IDs from a Form upload cell ("https://drive.google.com/open?id=..., ..."). */
+function fileIds_(cell) {
+  return String(cell || '').match(/[-\w]{25,}/g) || [];
+}
+
+/**
+ * Returns a photo as a data URL the panel can draw. JPEG/PNG are sent as-is;
+ * other formats (HEIC from iPhones, PDF) go through Drive's thumbnail renderer.
+ */
+function getImage(fileId) {
+  const file = DriveApp.getFileById(fileId);
+  const info = { name: file.getName(), url: file.getUrl(), dataUrl: null };
+  const blob = file.getBlob();
+  const type = blob.getContentType();
+  if (/^image\/(jpeg|png|webp|gif)$/.test(type) && file.getSize() < 15e6) {
+    info.dataUrl = 'data:' + type + ';base64,' + Utilities.base64Encode(blob.getBytes());
+    return info;
+  }
+  try {
+    const auth = { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() } };
+    const meta = JSON.parse(UrlFetchApp.fetch(
+      'https://www.googleapis.com/drive/v3/files/' + fileId + '?fields=thumbnailLink', auth).getContentText());
+    if (meta.thumbnailLink) {
+      const big = meta.thumbnailLink.replace(/=s\d+$/, '=s2400');
+      const thumb = UrlFetchApp.fetch(big, auth).getBlob();
+      info.dataUrl = 'data:' + thumb.getContentType() + ';base64,' + Utilities.base64Encode(thumb.getBytes());
+    }
+  } catch (err) {
+    info.error = 'Could not preview this file (' + type + '). Use "Open in Drive".';
+  }
+  return info;
+}
+
+/** Rows already typed in for one submission. */
+function getEntries(key) {
+  return readEntries_().filter(e => e.submission === key).map(e => e.values);
+}
+
+/**
+ * Replaces the typed rows for one submission, re-runs the comparison and
+ * returns the comparison rows for the dates on this page.
+ */
+function saveEntries(key, responseRow, rows) {
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  try {
+    const s = getSettings_();
+    const who = Session.getActiveUser().getEmail();
+    const now = new Date();
+    const out = rows
+      .filter(r => r.some(v => String(v).trim() !== ''))
+      .map(r => {
+        const values = FIELDS.map((f, i) => NUMERIC_FIELDS.indexOf(f) >= 0 && r[i] !== '' ? toNumber_(r[i]) : r[i]);
+        return [key, responseRow].concat(values, [rowCheck_(values, s), who, now]);
+      });
+    if (out.some(r => !normDate_(r[2]))) throw new Error('Every row needs a DATE.');
+
+    const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.ENTRIES);
+    const last = sh.getLastRow();
+    if (last > 1) {
+      const keys = sh.getRange(2, 1, last - 1, 1).getDisplayValues();
+      for (let i = keys.length - 1; i >= 0; i--) if (keys[i][0] === key) sh.deleteRow(i + 2);
+    }
+    if (out.length) sh.getRange(sh.getLastRow() + 1, 1, out.length, out[0].length).setValues(out);
+    SpreadsheetApp.flush();
+    const dates = {};
+    out.forEach(r => { dates[normDate_(r[2])] = true; });
+    return runComparison_().filter(r => dates[r[0]]);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Arithmetic check on one logbook row: VAT ≈ rate × VAT SALE, and CASH + CARD ≈ VAT SALE + VAT. */
+function rowCheck_(values, s) {
+  const get = f => values[FIELDS.indexOf(f)];
+  const vatSale = get('VAT SALE'), vat = get('12% VAT');
+  if (vatSale === '' || vatSale === null) return 'OK';
+  const problems = [];
+  const vatExpected = toNumber_(vatSale) * s.vatRate;
+  if (vat !== '' && Math.abs(toNumber_(vat) - vatExpected) > s.tolerance) {
+    problems.push('VAT should be ≈ ' + vatExpected.toFixed(2));
+  }
+  const paid = toNumber_(get('CASH')) + toNumber_(get('CARD'));
+  const gross = toNumber_(vatSale) + toNumber_(vat);
+  if (paid && Math.abs(paid - gross) > s.tolerance) {
+    problems.push('CASH+CARD (' + paid.toFixed(2) + ') ≠ VAT SALE+VAT (' + gross.toFixed(2) + ')');
+  }
+  return problems.length ? '⚠ ' + problems.join('; ') : 'OK';
+}
+
+/** [{submission, values:[DATE, NAME, ...]}] from the Journal Entries tab. */
+function readEntries_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.ENTRIES);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 2 + FIELDS.length).getValues().map(r => ({
+    submission: String(r[0]),
+    values: r.slice(2).map((v, i) => i === 0 ? normDate_(v) : v),
+  }));
+}
