@@ -15,31 +15,48 @@ function openScanner() {
   SpreadsheetApp.getUi().showModelessDialog(html, 'Logbook Scanner');
 }
 
-/** Form submissions that have at least one photo (newest first) and the branch names (A–Z). */
+/**
+ * Recent Form submissions that have at least one photo (newest first), the branch names (A–Z)
+ * and whether the sheets write dates day first or month first.
+ */
 function getPanelData() {
   const s = getSettings_();
   const sh = getResponsesSheet_(s);
   const last = sh.getLastRow();
-  const result = { submissions: [], branches: [] };
+  const result = { submissions: [], branches: [], dateOrder: 'MDY', hidden: 0, recentDays: s.recentDays };
   if (last < 2) return result;
+  const headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0];
   const jc = colToNum_(s.journalCol), rc = colToNum_(s.receiptCol);
-  const bc = branchColumn_(s, sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0]);
-  const vals = sh.getRange(2, 1, last - 1, Math.max(jc, rc, bc, 2)).getDisplayValues();
+  const bc = branchColumn_(s, headers);
+  const nc = s.nameCol ? colToNum_(s.nameCol) : findHeader_(headers, /name/i, /branch|file|photo|upload/i);
+  const dc = s.dateCol ? colToNum_(s.dateCol) : findHeader_(headers, /date/i, /time ?stamp/i);
+  const disp = sh.getRange(2, 1, last - 1, Math.max(jc, rc, bc, nc, dc, 2)).getDisplayValues();
+  const stamps = sh.getRange(2, 1, last - 1, 1).getValues().map(r => r[0]);
+  const logDates = dc ? sh.getRange(2, dc, last - 1, 1).getValues().map(r => r[0]) : null;
+  result.dateOrder = detectDateOrder_(stamps, disp.map(r => r[0]));
+  setDateOrder_(result.dateOrder);
+
+  const cutoff = s.recentDays > 0 ? Date.now() - s.recentDays * 86400000 : 0;
   const done = {};
   readReview_().forEach(r => { done[r[0]] = true; });
-  result.submissions = vals.map((r, i) => {
+  for (let i = disp.length - 1; i >= 0; i--) {
+    const r = disp[i];
+    const journal = fileIds_(r[jc - 1]), receipt = fileIds_(r[rc - 1]);
+    if (!journal.length && !receipt.length) continue;
+    if (cutoff && stamps[i] instanceof Date && stamps[i].getTime() < cutoff) { result.hidden++; continue; }
     const key = (i + 2) + '|' + r[0];
-    return {
+    result.submissions.push({
       key: key,
       row: i + 2,
       submitted: r[0],
-      who: r[1],
-      journal: fileIds_(r[jc - 1]),
-      receipt: fileIds_(r[rc - 1]),
+      who: nc ? r[nc - 1] : r[1],
+      logDate: dc && (logDates[i] || r[dc - 1]) ? shortDate_(logDates[i] || r[dc - 1]) : '',
+      journal: journal,
+      receipt: receipt,
       branch: bc ? r[bc - 1].trim() : '',
       done: !!done[key],
-    };
-  }).filter(x => x.journal.length || x.receipt.length).reverse();
+    });
+  }
   result.branches = sortBranches_(result.submissions.map(x => x.branch));
   return result;
 }

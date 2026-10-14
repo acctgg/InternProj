@@ -28,6 +28,9 @@ const DEFAULTS = [
   ['Receipt / extra page photo column', 'G'],
   ['Branch column in Spreadsheet 1 (blank = find the "Branch" header)', ''],
   ['Count identical Spreadsheet 2 rows once (yes/no)', 'yes'],
+  ['Only list submissions from the last N days (blank = all)', 30],
+  ['Logbook date column in Spreadsheet 1 (blank = find a "Date" header)', ''],
+  ['Name column in Spreadsheet 1 (blank = find a "Name" header)', ''],
 ];
 const MAP_TITLE = 'Column matching: how is each Spreadsheet 2 column used? (DATE and BRANCH filter the records; SHOW columns are checked against the photo)';
 
@@ -48,6 +51,9 @@ function getSettings_() {
     receiptCol: String(v[7]).trim() || 'G',
     branchCol: String(v[8]).trim(),
     dedupe: !/^(no|n|false|0)$/i.test(String(v[9]).trim()),
+    recentDays: Number(v[10]) || 0,
+    dateCol: String(v[11]).trim(),
+    nameCol: String(v[12]).trim(),
   };
 }
 
@@ -195,7 +201,8 @@ function openTab_(urlOrId, tabName, label) {
   const gid = urlOrId.match(/gid=(\d+)/);
   if (gid) {
     const tab = ss.getSheets().filter(t => String(t.getSheetId()) === gid[1])[0];
-    if (tab) return tab;
+    if (!tab) throw new Error('The tab in the ' + label + ' link (gid=' + gid[1] + ') was not found. Fix the link or type the tab name in ' + SHEETS.CONFIG + '.');
+    return tab;
   }
   return ss.getSheets()[0];
 }
@@ -240,10 +247,33 @@ function expandColumns_(spec) {
 }
 
 /** Any date-ish value → 'yyyy-MM-dd' ('' if not a date). Text dates are read month-first. */
+// Whether text dates are written day first (13/10/2026, 'DMY') or month first (10/13/2026, 'MDY').
+// getPanelData detects it from Spreadsheet 1; the panel passes it back on every call.
+let DATE_ORDER_ = 'MDY';
+function setDateOrder_(order) {
+  if (order === 'DMY' || order === 'MDY') DATE_ORDER_ = order;
+}
+
+/** Compares real timestamps with how the sheet displays them, e.g. 13 Oct shown as "13/10/…" means day first. */
+function detectDateOrder_(values, displays) {
+  let dmy = 0, mdy = 0;
+  for (let i = values.length - 1; i >= 0 && dmy + mdy < 50; i--) {
+    const v = values[i];
+    if (!(v instanceof Date) || v.getDate() <= 12) continue;
+    const m = String(displays[i]).match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-]/);
+    if (!m) continue;
+    if (+m[1] === v.getDate()) dmy++;
+    else if (+m[2] === v.getDate()) mdy++;
+  }
+  return dmy > mdy ? 'DMY' : 'MDY';
+}
+
 // normDate_ runs once per Spreadsheet 2 row, so the time zone and formatted dates are cached:
 // asking Google for them on every row made large sheets take minutes.
 let TZ_ = null;
 const DATE_CACHE_ = {};
+
+/** Any date-ish value → 'yyyy-MM-dd' ('' if not a date). Text dates follow DATE_ORDER_. */
 function normDate_(v) {
   if (v instanceof Date) {
     const t = v.getTime();
@@ -256,10 +286,30 @@ function normDate_(v) {
   }
   const t = String(v).trim();
   let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return m[1] + '-' + pad2_(m[2]) + '-' + pad2_(m[3]);
-  m = t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
-  if (m) return (m[3].length === 2 ? '20' + m[3] : m[3]) + '-' + pad2_(m[1]) + '-' + pad2_(m[2]);
-  return '';
+  if (m) return validDate_(m[1], m[2], m[3]);
+  m = t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})(\s.*)?$/);
+  if (!m) return '';
+  const y = m[3].length === 2 ? '20' + m[3] : m[3];
+  const [a, b] = DATE_ORDER_ === 'DMY' ? [m[2], m[1]] : [m[1], m[2]];   // [month, day]
+  return validDate_(y, a, b) || validDate_(y, b, a);   // 13/10 can only be day first, whatever the setting
+}
+
+function validDate_(y, mo, d) {
+  if (+mo < 1 || +mo > 12 || +d < 1 || +d > 31) return '';
+  return y + '-' + pad2_(mo) + '-' + pad2_(d);
+}
+
+/** Any date-ish value → 'dd/MM/yy' or 'MM/dd/yy' (whichever the sheets use). */
+function shortDate_(v) {
+  const d = normDate_(v);
+  if (!d) return String(v);
+  const dd = d.slice(8, 10), mm = d.slice(5, 7), yy = d.slice(2, 4);
+  return DATE_ORDER_ === 'DMY' ? dd + '/' + mm + '/' + yy : mm + '/' + dd + '/' + yy;
+}
+
+/** 1-based column whose header matches `include` and not `exclude`, or 0. */
+function findHeader_(headers, include, exclude) {
+  return headers.findIndex(h => include.test(h) && !(exclude && exclude.test(h))) + 1;
 }
 
 function pad2_(x) { return ('0' + x).slice(-2); }

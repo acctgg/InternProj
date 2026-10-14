@@ -54,6 +54,9 @@ Google Form upload ─► Spreadsheet 1 (Form responses)
 | Sales Journal / extra page photo columns | `F` / `G` |
 | Branch column in Spreadsheet 1 | blank = the column whose header contains "Branch" |
 | Count identical Spreadsheet 2 rows once | `yes`: rows that repeat in every used column are shown once |
+| Only list submissions from the last N days | `30`; blank = the whole history |
+| Logbook date column in Spreadsheet 1 | blank = the column whose header contains "Date" (not the Timestamp). Fills the date box automatically |
+| Name column in Spreadsheet 1 | blank = the column whose header contains "Name". Shown in the submission picker |
 
 Below the settings is the **column matching** table. It lists every
 Spreadsheet 2 column from the setting above with its header. Set each one
@@ -80,8 +83,10 @@ choices you already made are kept.
    mouse button and drag** to move around the photo. Use *Scan look*
    (grayscale with high contrast) for faint writing, and switch it off for
    photos with dark shadows.
-4. Type the **date written on the logbook page** (`10/12/26`; ‹ › step a
-   day). The right side lists Spreadsheet 2's records for that date and the
+4. The **logbook date** is filled in from the Form answers (check it
+   against the page; ‹ › step a day). Dates are typed the way your sheets
+   write them: day first (`13/10/26`) when the sheets show `13/10/2026`.
+   The scanner detects which one your sheets use. The right side lists Spreadsheet 2's records for that date and the
    submission's branch. Use **Search** to narrow them down (name, CI#,
    amount), or to find records on any date.
 5. Go through the records against the photo:
@@ -104,7 +109,10 @@ choices you already made are kept.
 Reopening a submission loads its saved review, so it can be finished or
 corrected later. Submissions with a saved review show ✓ in the picker.
 
-Text dates in Spreadsheet 2 are read **month first** (`09/16/2026`).
+The submission picker shows the logbook date, the name, when it was sent
+and the row number. The row number is the row in the Form responses tab
+itself. A **sorted filter view** shows different numbers, so go by the
+name and date.
 
 ## Optional: a button on the sheet
 

@@ -19,6 +19,7 @@ const RECORD_LIMIT = 300;
  */
 function getRecords(filter) {
   filter = filter || {};
+  setDateOrder_(filter.order);
   const s = getSettings_();
   const mapping = readMapping_(false);
   const dateMap = mapping.filter(m => m.field === DATE)[0];
@@ -31,7 +32,7 @@ function getRecords(filter) {
   };
 
   const d = filter.date ? normDate_(filter.date) : '';
-  if (filter.date && !d) throw new Error('Could not read the date "' + filter.date + '". Use mm/dd/yy.');
+  if (filter.date && !d) throw new Error('Could not read the date "' + filter.date + '". Use ' + (DATE_ORDER_ === 'DMY' ? 'dd/mm/yy' : 'mm/dd/yy') + '.');
   const words = String(filter.q || '').toLowerCase().split(/\s+/).filter(String);
 
   const src = openSource_(s);
@@ -107,7 +108,8 @@ function getRecords(filter) {
 }
 
 /** What was saved for one submission: {date, marks: {row: {status, cells: {letter: {photo, value, header}}}}, extras: [photo text]} */
-function getReview(key) {
+function getReview(key, order) {
+  setDateOrder_(order);
   const out = { date: '', marks: {}, extras: [] };
   readReview_().filter(r => r[0] === key).forEach(r => {
     out.date = out.date || shortDate_(r[3]);
@@ -124,7 +126,8 @@ function getReview(key) {
  * Replaces the saved review of one submission.
  * lines: [{row, letter, header, value, status, photo}]; row/letter are blank for "Only in photo".
  */
-function saveReview(key, responseRow, branch, date, lines) {
+function saveReview(key, responseRow, branch, date, lines, order) {
+  setDateOrder_(order);
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
@@ -163,12 +166,6 @@ function readReview_() {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.REVIEW);
   if (!sh || sh.getLastRow() < 2) return [];
   return sh.getRange(2, 1, sh.getLastRow() - 1, REVIEW_HEADERS.length).getDisplayValues();
-}
-
-/** Any date-ish value → 'MM/dd/yy', the way logbook dates are written. */
-function shortDate_(v) {
-  const d = normDate_(v);
-  return d ? d.slice(5, 7) + '/' + d.slice(8, 10) + '/' + d.slice(2, 4) : String(v);
 }
 
 function normText_(v) {

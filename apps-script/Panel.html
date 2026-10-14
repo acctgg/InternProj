@@ -317,7 +317,7 @@
 
 <script>
   const S = { all: [], list: [], branches: [], branch: remember('branch') || '', cur: null, pages: [], page: 0, cache: {}, zoom: 1, rot: 0,
-    marks: {}, extras: [], rec: null, view: 'all' };
+    marks: {}, extras: [], rec: null, view: 'all', dateOrder: 'MDY', hidden: 0, recentDays: 0 };
   const $ = id => document.getElementById(id);
   const ICON = {
     img: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>',
@@ -440,7 +440,9 @@
   // ---- submissions ----
   function loadSubs(keepKey) {
     call('getPanelData', [], data => {
-      S.all = data.submissions; S.branches = data.branches;
+      S.all = data.submissions; S.branches = data.branches; S.dateOrder = data.dateOrder;
+      S.hidden = data.hidden; S.recentDays = data.recentDays;
+      $('fDate').placeholder = S.dateOrder === 'DMY' ? 'dd/mm/yy' : 'mm/dd/yy';
       fillBranches();
       fillSelect(keepKey);
     });
@@ -460,7 +462,9 @@
     // All branches: group by branch A–Z, newest first inside each branch (sort is stable).
     if (!S.branch && S.branches.length) list = list.slice().sort(byBranch);
     S.list = list;
-    const option = (s, i) => `<option value="${i}">${s.done ? '✓' : '○'}  Row ${s.row}  ·  ${esc(s.submitted)}${s.who ? '  ·  ' + esc(s.who) : ''}</option>`;
+    // Name and logbook date first: row numbers differ from what people see in a sorted/filtered view.
+    const option = (s, i) => `<option value="${i}">${s.done ? '✓' : '○'}  ${s.logDate ? esc(s.logDate) + '  ·  ' : ''}` +
+      `${s.who ? esc(s.who) + '  ·  ' : ''}sent ${esc(s.submitted)}  ·  row ${s.row}</option>`;
     if (!S.branch && S.branches.length) {
       let html = '', group = null;
       S.list.forEach((s, i) => {
@@ -473,7 +477,7 @@
       $('subs').innerHTML = S.list.map(option).join('');
     }
     const pending = inBranch.filter(s => !s.done).length;
-    status(pending + ' pending · ' + inBranch.length + ' total');
+    status(pending + ' pending · ' + inBranch.length + ' total' + (S.recentDays && S.hidden ? ' · last ' + S.recentDays + ' days' : ''));
     syncCombos();
     if (!S.list.length) {
       S.cur = null;
@@ -554,14 +558,14 @@
     resetReview();
     if (!S.cur) return;
     const key = S.cur.key;
-    call('getReview', [key], rv => {
+    call('getReview', [key, S.dateOrder], rv => {
       if (!S.cur || S.cur.key !== key) return;
       Object.keys(rv.marks).forEach(row => {
         const m = rv.marks[row];
         S.marks[row] = { status: m.status === 'Match' ? 'ok' : m.status === 'Not in photo' ? 'gone' : '', cells: m.cells };
       });
       S.extras = rv.extras.slice();
-      $('fDate').value = rv.date || '';
+      $('fDate').value = rv.date || S.cur.logDate || '';   // the logbook date from the Form answers
       renderExtras();
       loadRecords();
       if (!rv.date) $('fDate').focus();
@@ -580,7 +584,7 @@
     google.script.run
       .withSuccessHandler(rec => { if (token === S.recToken) { S.recLoading = false; S.rec = rec; renderRecords(); updateSummary(); } })
       .withFailureHandler(e => { if (token === S.recToken) { S.recLoading = false; $('recCount').textContent = ''; status(e.message || e, true); } })
-      .getRecords({ date: date, q: q, branch: recordBranch() || '' });
+      .getRecords({ date: date, q: q, branch: recordBranch() || '', order: S.dateOrder });
   }
 
   function rowState(row) {
@@ -742,11 +746,13 @@
 
   // ---- filters ----
   function shiftDay(d) {
-    const m = $('fDate').value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
-    const base = m ? new Date(+(m[3].length === 2 ? '20' + m[3] : m[3]), +m[1] - 1, +m[2]) : new Date();
+    const dmy = S.dateOrder === 'DMY';
+    const m = $('fDate').value.trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/);
+    const base = m ? new Date(+(m[3].length === 2 ? '20' + m[3] : m[3]), +(dmy ? m[2] : m[1]) - 1, +(dmy ? m[1] : m[2])) : new Date();
     if (m) base.setDate(base.getDate() + d);
     const p = x => ('0' + x).slice(-2);
-    $('fDate').value = p(base.getMonth() + 1) + '/' + p(base.getDate()) + '/' + String(base.getFullYear()).slice(2);
+    const dd = p(base.getDate()), mm = p(base.getMonth() + 1), yy = String(base.getFullYear()).slice(2);
+    $('fDate').value = dmy ? dd + '/' + mm + '/' + yy : mm + '/' + dd + '/' + yy;
     loadRecords();
   }
   $('dayPrev').onclick = () => shiftDay(-1);
@@ -807,7 +813,7 @@
         loadSubs(S.cur.key);
       })
       .withFailureHandler(e => { $('save').disabled = false; status(e.message || e, true); })
-      .saveReview(S.cur.key, S.cur.row, recordBranch() || '', date, lines);
+      .saveReview(S.cur.key, S.cur.row, recordBranch() || '', date, lines, S.dateOrder);
   }
 
   // ---- wiring ----
