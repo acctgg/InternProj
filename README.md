@@ -1,26 +1,27 @@
 # Logbook Scanner (Google Apps Script)
 
-A free tool that lives inside a Google Sheet. It shows the Sales Journal photos
-uploaded through the Google Form next to an entry grid. A person types in
-what the handwritten logbook says, and the tool compares it with
-Spreadsheet 2, by date.
+A free tool that lives inside a Google Sheet. It shows a logbook photo
+uploaded through the Google Form next to the matching records from
+Spreadsheet 2. A person checks the records against the photo, marks
+anything that doesn't match, and the result is saved in a **Review** tab.
 
 No paid APIs and no automatic handwriting reading: everything runs on
-Apps Script, which is free with a Google account.
+Apps Script, which is free with a Google account. The checking itself is
+done by a person.
 
 ```
 Google Form upload ─► Spreadsheet 1 (Form responses)
-                        F = Sales Journal photo, G = extra page (optional)
+                        F = Sales Journal photo, G = extra page (optional), Branch
                                    │
                    Scanner panel (inside the sheet)
-                   photo viewer: zoom · rotate · "scan look"
-                   entry grid: DATE · NAME · CI# · CASH · CARD · VAT SALE · 12% VAT
-                   live row check: VAT ≈ 12% of VAT SALE, CASH+CARD ≈ VAT SALE+VAT
-                                   │ Save & compare
+      ┌────────────────────────────┴───────────────────────────────┐
+      photo viewer                         Spreadsheet 2 records
+      zoom · drag · rotate · scan look     filtered by branch + logbook date + search
+                                           click a value that doesn't match the photo
+                                           ✓ match · ✕ not in photo · + only in photo
+                                   │ Save review
                                    ▼
-             "Journal Entries" tab ──by date──► Spreadsheet 2 (C, D, X–AF)
-                                   ▼
-             "Comparison" tab: ✅ Match / ⚠️ Check / ❌ Mismatch
+             "Review" tab: Match / Not match / Not in photo / Only in photo
 ```
 
 ## Install (about 5 minutes)
@@ -34,10 +35,13 @@ Google Form upload ─► Spreadsheet 1 (Form responses)
    - `Panel.html` (use **+ → HTML**, name it `Panel`)
    - `appsscript.json`: under **Project Settings**, tick *Show "appsscript.json"*,
      then replace that file's contents.
+
+   Copy each file from GitHub with the **Copy raw file** button so nothing
+   gets cut off.
 4. Save, then reload the spreadsheet. A **Scanner** menu appears.
 5. **Scanner → Set up / refresh column matching.** Approve the permissions
-   prompt the first time.
-   - The tool creates three tabs: **Scanner Config**, **Journal Entries** and **Comparison**.
+   prompt the first time. The tool creates two tabs: **Scanner Config** and
+   **Review**.
 
 ## Configure (Scanner Config tab)
 
@@ -45,70 +49,60 @@ Google Form upload ─► Spreadsheet 1 (Form responses)
 |---|---|
 | Spreadsheet 2 (URL or ID) | the Spreadsheet 2 link; its `gid` picks the tab |
 | Spreadsheet 2 header row | 1 |
-| Spreadsheet 2 columns to compare | `C,D,X:AF` |
+| Spreadsheet 2 columns to compare | `C,D,X:AF`. Add the invoice/CI# and customer columns here too |
 | Spreadsheet 1: Form responses (URL or ID) | the Spreadsheet 1 link (`gid=921021716`); leave it blank if the tool lives in Spreadsheet 1 |
 | Sales Journal / extra page photo columns | `F` / `G` |
 | Branch column in Spreadsheet 1 | blank = the column whose header contains "Branch" |
-| Tolerance for amounts (±) | 1 |
-| VAT rate | 0.12 |
-| Count identical Spreadsheet 2 rows once | `yes`: rows repeated in every matched column count once. Match an invoice/CI# column so two separate sales with the same amount are never merged |
+| Count identical Spreadsheet 2 rows once | `yes`: rows that repeat in every used column are shown once |
 
-Below the settings is the **column matching** table. The tool reads
-Spreadsheet 2's header for each of C, D and X–AF and guesses which logbook
-field each one holds. Check every row and fix it with the dropdown.
-**Exactly one column must be `DATE`.** Set the column that holds the
-branch name to `BRANCH`, so each page is compared only with its own branch's
-rows. Mark columns that have no logbook
-equivalent `(ignore)`. Run *Set up / refresh column matching* again any
-time the columns change; choices you already made are kept.
+Below the settings is the **column matching** table. It lists every
+Spreadsheet 2 column from the setting above with its header. Set each one
+to how it is used:
+
+| Use as | Meaning |
+|---|---|
+| `DATE` | the date of the sale. **Exactly one column.** |
+| `BRANCH` | the branch name, so only the submission's branch is listed |
+| `SHOW` | shown in the scanner and checked against the photo |
+| `(ignore)` | not used |
+
+Run *Set up / refresh column matching* again whenever the columns change;
+choices you already made are kept.
 
 ## Daily use
 
 1. **Scanner → Open scanner.**
-2. Pick a **branch** in the top-left dropdown. Branch names come from
-   Spreadsheet 1 and are listed A–Z. *All branches* groups the
-   submissions by branch, A–Z. The choice is remembered next time.
-3. Pick a submission. The **list / 🔍 switch** in the top bar sets how
-   branches and submissions are browsed. Dropdown mode uses normal menus.
-   Search mode turns both pickers into search boxes: type any part of a
-   row number, date, email or branch (e.g. `10/12 annex`), use ↑ ↓ and
-   **Enter** to pick, and press **/** to jump to the submission search.
-   Each admin's choice is remembered. The newest pending one is shown first, and ✓ marks
-   the ones already done.
-4. Read the photo. Use zoom (it stays centered; when zoomed in, **hold the left mouse button and drag** to move around the photo), rotate and *Scan look* (grayscale with high
-   contrast) to make the handwriting easier to read. Switch between
-   *Journal* and *Extra page* photos with the buttons above the photo.
-5. **Auto-fill:** type a date (`10/12/26`) into an empty row and press
-   **Enter**. If Spreadsheet 2 already has rows for that date and branch,
-   they're filled into the grid in **blue**. Check each blue cell against
-   the photo: a cell turns white once you edit it, or click
-   **Mark all checked**. Saving with blue cells left needs a second click
-   (*Save anyway*), and those rows are marked "filled from Spreadsheet 2,
-   not checked" in the Journal Entries tab. A filled value always matches
-   Spreadsheet 2, so the comparison is only as good as this check.
-   Otherwise, type each logbook row. **Enter** moves to the next cell, a new row
-   copies the date from the row above, and rows whose numbers don't add up
-   turn yellow.
-6. **Save & compare.** The results for that page's dates appear in the
-   panel, and the full list is in the **Comparison** tab.
+2. Pick a **branch** at the top left (names come from Spreadsheet 1, A–Z),
+   then a **submission**. The list/🔍 switch in the top bar sets how you
+   browse: normal dropdowns, or search boxes where you type part of a row
+   number, date, email or branch (press **/** to jump to the search).
+3. Read the photo. Zoom stays centered. When zoomed in, **hold the left
+   mouse button and drag** to move around the photo. Use *Scan look*
+   (grayscale with high contrast) for faint writing, and switch it off for
+   photos with dark shadows.
+4. Type the **date written on the logbook page** (`10/12/26`; ‹ › step a
+   day). The right side lists Spreadsheet 2's records for that date and the
+   submission's branch. Use **Search** to narrow them down (name, CI#,
+   amount), or to find records on any date.
+5. Go through the records against the photo:
+   - **A value is different** → click it. It turns red, and you can type
+     what the photo says underneath.
+     Click the struck-out value to undo.
+   - **The whole row matches** → ✓. **The row isn't in the photo** → ✕.
+   - **Everything left matches** → **Rest match**.
+   - **The photo has a row Spreadsheet 2 doesn't** → *Add a row that's in
+     the photo…*
+6. The tiles at the bottom count **Not match**, **Not checked**, **Match**
+   and **Only in photo**. Click a tile to show only that category; click it
+   again to show everything.
+7. **Save review.** If some records aren't checked yet, the first click
+   asks you to confirm (*Save anyway*). Results go to the **Review** tab,
+   one line per matched row, per value that doesn't match (with what the
+   photo says), per row missing from the photo and per row only in the
+   photo, color-coded.
 
-Re-opening a done submission loads what was typed before, so it can be
-corrected and saved again.
-
-## How the comparison works ("by date")
-
-For each date typed in, every logbook row with that date is compared with
-**every Spreadsheet 2 row that has the same date and branch**. The branch
-filter applies only when a Spreadsheet 2 column is set to `BRANCH`. Branch
-names must match apart from capital letters, spaces and punctuation.
-Field by field:
-
-- **Amount fields** (CASH, CARD, VAT SALE, 12% VAT, TOTAL): the day's
-  totals must agree within the tolerance.
-- **Text fields** (NAME, CI#): each value must appear on both sides.
-  A near-miss, such as "Shaina Vilena" against "Shaina Villena", shows as
-  ⚠️ *Check* so that typos can be told apart from real gaps.
-- A date that isn't in Spreadsheet 2 at all shows as ❌ *Date missing*.
+Reopening a submission loads its saved review, so it can be finished or
+corrected later. Submissions with a saved review show ✓ in the picker.
 
 Text dates in Spreadsheet 2 are read **month first** (`09/16/2026`).
 
@@ -123,5 +117,7 @@ scanner.
 - The photos stay in the Form owner's Google Drive. The person using the
   scanner must be able to open them. iPhone HEIC photos and PDFs are shown
   using Drive's preview image.
+- The old **Journal Entries** and **Comparison** tabs from the previous
+  version are no longer used. You can delete them.
 - The script's time zone is set to `Asia/Manila` in `appsscript.json`.
   Change it there if that's wrong.
