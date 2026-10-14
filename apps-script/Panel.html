@@ -75,7 +75,7 @@
   .banner button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0; }
 
   /* ---------- layout ---------- */
-  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 14px; padding: 14px 16px 16px; min-height: 0; }
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr); gap: 14px; padding: 14px 16px 16px; min-height: 0; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
   .card-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
   .card-title { font-weight: 600; font-size: 14px; }
@@ -150,6 +150,68 @@
   .stat .k { font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
   .stat .v { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 
+  /* ---------- review ---------- */
+  .filters { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .datebox { display: flex; align-items: center; height: 34px; border: 1px solid var(--line-strong); border-radius: 10px; background: #fff; overflow: hidden; }
+  .datebox:focus-within, .searchbox:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .datebox button { height: 100%; width: 28px; border: 0; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+  .datebox button:hover { background: var(--bg); color: var(--ink); }
+  .datebox input { width: 84px; border: 0; outline: none; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .searchbox { flex: 1; min-width: 0; height: 34px; padding: 0 12px 0 34px; border: 1px solid var(--line-strong); border-radius: 10px; outline: none;
+               background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7385' stroke-width='2.5' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 12px center; }
+  .btn.ghost { border-color: transparent; background: var(--bg); color: var(--muted); }
+  .btn.ghost:hover { color: var(--ok); background: var(--ok-soft); }
+  .note { margin: 10px 14px 0; }
+  table.grid.rec { table-layout: auto; }
+  .rec th, .rec td { white-space: nowrap; }
+  .rec td { padding: 8px 6px; font-variant-numeric: tabular-nums; }
+  .rec th.num, .rec td.num { text-align: right; }
+  .rec td.c-idx { padding: 8px 4px; }
+  .rec td.cell:not(.num) { white-space: normal; min-width: 64px; max-width: 200px; }
+  .rec th { letter-spacing: .02em; padding: 9px 6px; }
+  .rec tfoot td.c-total { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding-left: 8px; }
+  .rec .c-date { color: var(--muted); font-size: 12px; }
+  .rec td.cell { cursor: pointer; border-radius: 0; transition: background .1s; }
+  .rec tr td.cell:hover { background: #eef2ff; box-shadow: inset 0 0 0 1px #c9d5ff; }
+  .rec td.cell.flag, .rec tr td.cell.flag:hover { background: var(--bad-soft); box-shadow: inset 0 0 0 1.5px #f1a3ab; cursor: default; }
+  .rec .was { display: block; font-size: 11px; color: var(--bad); text-decoration: line-through; cursor: pointer; margin-bottom: 3px; }
+  .rec .was:hover { text-decoration: none; }
+  .rec input.photo { width: 100%; min-width: 64px; height: 26px; padding: 0 6px; border: 1px solid #f1a3ab; border-radius: 6px; background: #fff; text-align: inherit; outline: none; }
+  .rec input.photo:focus { border-color: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
+  .rec tr.st-ok td { background: #f4fbf7; }
+  .rec tr.st-ok td.c-idx { border-left-color: var(--ok); color: var(--ok); }
+  .rec tr.st-bad td.c-idx, .rec tr.st-gone td.c-idx { border-left-color: var(--bad); color: var(--bad); }
+  .rec tr.st-bad td { background: #fffafa; }
+  .rec tr.st-gone td { background: #fff3f4; color: var(--faint); text-decoration: line-through; }
+  .rec td.c-act { text-align: right; padding: 4px 4px; text-decoration: none; }
+  .act { width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--faint); cursor: pointer; display: inline-grid; place-items: center; }
+  .act.ok:hover { background: var(--ok-soft); color: var(--ok); }
+  .act.gone:hover { background: var(--bad-soft); color: var(--bad); }
+  .rec tr.st-ok .act.ok { background: var(--ok); color: #fff; }
+  .rec tr.st-gone .act.gone { background: var(--bad); color: #fff; }
+  .rec tfoot td { font-weight: 700; background: #fafbfd; border-top: 1px solid var(--line-strong); }
+  .rec-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 48px 24px 24px; text-align: center; color: var(--muted); }
+  .rec-empty svg { width: 30px; height: 30px; color: var(--accent); stroke-width: 1.6; margin-bottom: 4px; }
+  .rec-empty b { color: var(--ink); font-size: 14px; }
+  .extra { display: flex; align-items: center; gap: 8px; margin: 8px 8px 0; padding: 6px 8px; border: 1px solid #f6d9a8; background: var(--warn-soft); border-radius: 9px; }
+  .extra input { flex: 1; height: 28px; padding: 0 8px; border: 1px solid #f0d199; border-radius: 7px; background: #fff; outline: none; }
+  .extra input:focus { border-color: var(--warn); }
+  .extra .del { width: 26px; height: 26px; border: 0; border-radius: 7px; background: none; color: var(--warn); cursor: pointer; display: grid; place-items: center; }
+  .extra .del:hover { background: #fde3b8; }
+  #extras.dim { opacity: .35; }
+  .tag.warn { background: #fde3b8; color: var(--warn); margin: 0; white-space: nowrap; }
+  .reccount { padding: 8px 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; min-height: 34px; display: flex; align-items: center; gap: 4px; }
+  .reccount:empty { display: none; }
+  .mini-spin { width: 11px; height: 11px; margin-right: 6px; border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; }
+  .tiles .stat { font: inherit; text-align: left; cursor: pointer; transition: .15s; border: 1px solid var(--line); }
+  .tiles .stat:hover { border-color: var(--faint); }
+  .tiles .stat.active { box-shadow: 0 0 0 2px var(--accent); border-color: var(--accent); }
+  .tiles .t-bad .k { color: var(--bad); }
+  .tiles .t-bad.hot { background: var(--bad-soft); border-color: #f4bcc2; }
+  .tiles .t-bad.hot .v { color: var(--bad); }
+  .tiles .t-ok .k { color: var(--ok); }
+  .tiles .t-extra .k { color: var(--warn); }
+
   /* ---------- results ---------- */
   #results { max-height: 40%; overflow: auto; border-top: 1px solid var(--line); padding: 12px 14px; }
   .hint { display: flex; align-items: center; gap: 8px; color: var(--muted); }
@@ -221,46 +283,50 @@
   <section class="card">
     <div class="card-head">
       <div>
-        <div class="card-title">Logbook entries</div>
-        <div class="sub">Type what the page says · <kbd>Enter</kbd> next cell</div>
+        <div class="card-title">Spreadsheet 2 records</div>
+        <div class="sub">Compare with the photo · <b>click any value that doesn't match</b></div>
       </div>
       <span class="spacer"></span>
-      <button class="btn primary" id="save"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Save &amp; compare</button>
+      <button class="btn primary" id="save"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Save review</button>
     </div>
+    <div class="filters">
+      <div class="datebox" title="The date written on the logbook page">
+        <button id="dayPrev" title="Previous day"><svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+        <input id="fDate" type="text" placeholder="mm/dd/yy" autocomplete="off">
+        <button id="dayNext" title="Next day"><svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+      </div>
+      <input id="fSearch" class="searchbox" type="text" placeholder="Search name, CI#, amount…" autocomplete="off">
+      <button class="btn ghost" id="markRest" title="Mark every record that isn't flagged as matching the photo"><svg viewBox="0 0 24 24"><path d="M18 6 7 17l-5-5M22 10l-7.5 7.5L13 16"/></svg>Rest match</button>
+    </div>
+    <div class="note" id="note"><span id="noteText"></span></div>
     <div id="entryWrap">
-      <div class="note" id="note"><span id="noteText"></span><button class="btn" id="markChecked">Mark all checked</button></div>
-      <table class="grid">
-        <colgroup><col style="width:30px"><col style="width:84px"><col><col style="width:68px">
-          <col style="width:74px"><col style="width:74px"><col style="width:80px"><col style="width:72px"><col style="width:30px"><col style="width:32px"></colgroup>
-        <thead><tr>
-          <th></th><th>Date</th><th>Name</th><th>CI#</th>
-          <th class="num">Cash</th><th class="num">Card</th><th class="num">VAT sale</th><th class="num">12% VAT</th><th></th><th></th>
-        </tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-      <button class="add-line" id="addRow"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add row</button>
+      <table class="grid rec"><thead id="recHead"></thead><tbody id="rows"></tbody><tfoot id="recFoot"></tfoot></table>
+      <div class="rec-empty" id="recEmpty"></div>
+      <div id="extras"></div>
+      <button class="add-line" id="addRow"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add a row that's in the photo but not in Spreadsheet 2</button>
     </div>
-    <div class="totals">
-      <div class="stat"><div class="k">Cash</div><div class="v" id="tCash">0.00</div></div>
-      <div class="stat"><div class="k">Card</div><div class="v" id="tCard">0.00</div></div>
-      <div class="stat"><div class="k">VAT sale</div><div class="v" id="tVs">0.00</div></div>
-      <div class="stat"><div class="k">12% VAT</div><div class="v" id="tVat">0.00</div></div>
+    <div class="reccount" id="recCount"></div>
+    <div class="totals tiles" id="tiles">
+      <button class="stat t-bad" data-view="bad"><div class="k">Not match</div><div class="v" id="cBad">0</div></button>
+      <button class="stat t-un" data-view="unchecked"><div class="k">Not checked</div><div class="v" id="cUn">0</div></button>
+      <button class="stat t-ok" data-view="ok"><div class="k">Match</div><div class="v" id="cOk">0</div></button>
+      <button class="stat t-extra" data-view="extra"><div class="k">Only in photo</div><div class="v" id="cExtra">0</div></button>
     </div>
-    <div id="results"></div>
   </section>
 </main>
 
 <script>
-  const FIELDS = ['DATE', 'NAME', 'CI#', 'CASH', 'CARD', 'VAT SALE', '12% VAT'];
-  const NUM = [3, 4, 5, 6];
-  const S = { all: [], list: [], branches: [], branch: remember('branch') || '', cur: null, pages: [], page: 0, cache: {}, zoom: 1, rot: 0, vatRate: 0.12, tol: 1 };
+  const S = { all: [], list: [], branches: [], branch: remember('branch') || '', cur: null, pages: [], page: 0, cache: {}, zoom: 1, rot: 0,
+    marks: {}, extras: [], rec: null, view: 'all' };
   const $ = id => document.getElementById(id);
   const ICON = {
     img: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>',
     del: '<svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>',
     info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>',
+    cal: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
   };
-  const HINT = '<div class="hint">' + ICON.info + 'Comparison with Spreadsheet 2 appears here after you save.</div>';
 
   function remember(k, v) {
     try { if (v === undefined) return localStorage.getItem('scanner.' + k); localStorage.setItem('scanner.' + k, v); } catch (e) { return null; }
@@ -374,7 +440,7 @@
   // ---- submissions ----
   function loadSubs(keepKey) {
     call('getPanelData', [], data => {
-      S.all = data.submissions; S.vatRate = data.vatRate; S.tol = data.tolerance; S.branches = data.branches;
+      S.all = data.submissions; S.branches = data.branches;
       fillBranches();
       fillSelect(keepKey);
     });
@@ -411,7 +477,7 @@
     syncCombos();
     if (!S.list.length) {
       S.cur = null;
-      $('pages').innerHTML = ''; $('pageInfo').textContent = ''; $('rows').innerHTML = ''; $('results').innerHTML = HINT; totals();
+      $('pages').innerHTML = ''; $('pageInfo').textContent = ''; resetReview();
       viewerMsg(ICON.img + (inBranch.length ? 'All caught up. Nothing pending.' : 'No submissions with photos' + (S.branch ? ' for ' + esc(S.branch) : '') + ' yet.'));
       return;
     }
@@ -428,15 +494,8 @@
     $('pageInfo').innerHTML = 'Row ' + S.cur.row + (S.cur.done ? ' · saved' : '') + (S.cur.branch ? `<span class="tag">${esc(S.cur.branch)}</span>` : '');
     S.rot = 0;
     showPage(0);
-    $('rows').innerHTML = '';
-    $('results').innerHTML = HINT;
     S.flash = '';
-    disarmSave();
-    updateNote();
-    call('getEntries', [S.cur.key], rows => {
-      (rows.length ? rows : [['', '', '', '', '', '', '']]).forEach(r => addRow(r));
-      totals();
-    });
+    loadReview();
   }
 
   // ---- photo viewer ----
@@ -480,180 +539,270 @@
     updatePannable();
   }
 
-  // ---- entry grid ----
-  /** opts.after: insert below this row; opts.pre: highlight filled cells as "from Spreadsheet 2, not checked yet". */
-  function addRow(values, focus, opts) {
-    opts = opts || {};
-    const prev = opts.after || $('rows').lastElementChild;
-    values = values || ['', '', '', '', '', '', ''];
-    if (!values[0] && prev) values[0] = prev.querySelector('input').value;  // carry the date down
-    values[0] = shortDate(values[0]);
-    const tr = document.createElement('tr');
-    tr.innerHTML = '<td class="idx"></td>' + FIELDS.map((f, i) => {
-      const extra = i === 0 ? ' placeholder="mm/dd/yy"' : NUM.includes(i) ? ' inputmode="decimal" placeholder="0.00"' : '';
-      return `<td class="${NUM.includes(i) ? 'num' : ''}"><input type="text"${extra} value="${esc(values[i])}" title="${esc(values[i])}"></td>`;
-    }).join('') + `<td class="check"></td><td><button class="del" title="Delete row" tabindex="-1">${ICON.del}</button></td>`;
-    tr.querySelector('.del').onclick = () => { tr.remove(); renumber(); totals(); updateNote(); };
-    if (opts.pre) [...tr.querySelectorAll('input')].slice(1).forEach(inp => inp.classList.toggle('pre', inp.value !== ''));
-    $('rows').insertBefore(tr, opts.after ? opts.after.nextSibling : null);
-    renumber();
-    checkRow(tr);
-    if (focus) tr.querySelectorAll('input')[prev ? 1 : 0].focus();
-    return tr;
-  }
-  /** 2026-10-12 → 10/12/26, the way dates are written in the logbook. */
-  function shortDate(v) {
-    const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    return m ? m[2] + '/' + m[3] + '/' + m[1].slice(2) : v;
-  }
-  function renumber() { [...$('rows').children].forEach((tr, i) => tr.querySelector('.idx').textContent = i + 1); }
-  function rowValues(tr) { return [...tr.querySelectorAll('input')].map(i => i.value.trim()); }
-  function checkRow(tr) {
-    const v = rowValues(tr), problems = [];
-    if (v[5] !== '') {
-      const exp = num(v[5]) * S.vatRate;
-      if (v[6] !== '' && Math.abs(num(v[6]) - exp) > S.tol) problems.push('VAT ≈ ' + exp.toFixed(2));
-      const paid = num(v[3]) + num(v[4]), gross = num(v[5]) + num(v[6]);
-      if (paid && Math.abs(paid - gross) > S.tol) problems.push('paid ' + paid.toFixed(2) + ' ≠ ' + gross.toFixed(2));
-    }
-    tr.classList.toggle('warn', problems.length > 0);
-    tr.querySelector('.check').innerHTML = problems.length ? `<span title="${esc(problems.join(' · '))}">!</span>` : '';
-  }
-  function totals() {
-    const sums = [0, 0, 0, 0];
-    [...$('rows').children].forEach(tr => { const v = rowValues(tr); NUM.forEach((c, k) => sums[k] += num(v[c])); });
-    ['tCash', 'tCard', 'tVs', 'tVat'].forEach((id, k) => $(id).textContent = money(sums[k]));
-  }
-  $('rows').addEventListener('input', e => {
-    if (e.target.classList.contains('pre')) { e.target.classList.remove('pre'); }  // edited = checked by a person
-    disarmSave();
-    checkRow(e.target.closest('tr'));
-    totals();
-    updateNote();
-  });
-  // Typing a date into an empty row pulls that day's rows from Spreadsheet 2.
-  $('rows').addEventListener('change', e => {
-    const tr = e.target.closest('tr');
-    if (!tr || e.target !== tr.querySelector('input')) return;
-    const v = rowValues(tr);
-    if (!/^\d{1,2}\/\d{1,2}\/(\d{2}|\d{4})$/.test(v[0]) || v.slice(1).some(x => x !== '')) return;
-    autofill(tr, v[0]);
-  });
+  // ---- review: Spreadsheet 2 records vs the photo ----
+  // S.marks[sheetRow] = { status: 'ok' | 'gone' | '', cells: { letter: { photo, value, header } } }
+  //   ok = matches the photo, gone = not in the photo, any flagged cell = "Not match".
+  function recordBranch() { return S.cur ? (S.cur.branch || S.branch) : S.branch; }
+  const idLike = h => /(^|\W)(ci|no|inv|invoice|tin|or|id|code)(\W|$)|#/i.test(h);
 
-  // ---- auto-fill from Spreadsheet 2 ----
-  function autofill(tr, date) {
-    tr.classList.add('loading');
-    flash('Looking up ' + date + ' in Spreadsheet 2…');
-    call('getDayRows', [date, S.cur ? S.cur.branch || '' : ''], found => {
-      tr.classList.remove('loading');
-      if (!tr.isConnected || rowValues(tr).slice(1).some(x => x !== '')) return updateNote();  // user typed meanwhile
-      const have = [...$('rows').children].map(r => rowValues(r)[2]).filter(String);
-      const fresh = found.filter(r => !(String(r[2]).trim() && have.includes(String(r[2]).trim())));
-      if (!fresh.length) {
-        flash(found.length ? 'All of Spreadsheet 2\'s rows for ' + date + ' are already in the grid.'
-          : 'No rows in Spreadsheet 2 for ' + date + (S.cur && S.cur.branch ? ' · ' + S.cur.branch : '') + '. Type them in.');
-        return;
-      }
-      let last = tr;
-      fresh.forEach((r, i) => {
-        r = r.map(x => x == null ? '' : String(x));
-        r[0] = date;
-        if (i === 0) {
-          [...tr.querySelectorAll('input')].forEach((inp, k) => { if (k) { inp.value = r[k]; inp.title = r[k]; inp.classList.toggle('pre', r[k] !== ''); } });
-          checkRow(tr);
-        } else {
-          last = addRow(r, false, { after: last, pre: true });
-        }
+  function resetReview() {
+    S.marks = {}; S.extras = []; S.rec = null; S.view = 'all'; S.dirty = false;
+    $('fDate').value = ''; $('fSearch').value = '';
+    disarmSave(); renderRecords(); renderExtras(); updateSummary();
+  }
+  function loadReview() {
+    resetReview();
+    if (!S.cur) return;
+    const key = S.cur.key;
+    call('getReview', [key], rv => {
+      if (!S.cur || S.cur.key !== key) return;
+      Object.keys(rv.marks).forEach(row => {
+        const m = rv.marks[row];
+        S.marks[row] = { status: m.status === 'Match' ? 'ok' : m.status === 'Not in photo' ? 'gone' : '', cells: m.cells };
       });
-      renumber();
-      totals();
-      S.flash = '';
-      updateNote();
-      tr.querySelectorAll('input')[1].focus();
+      S.extras = rv.extras.slice();
+      $('fDate').value = rv.date || '';
+      renderExtras();
+      loadRecords();
+      if (!rv.date) $('fDate').focus();
     });
   }
+  function loadRecords() {
+    const date = $('fDate').value.trim(), q = $('fSearch').value.trim();
+    if (!S.cur || (!date && !q)) { S.rec = null; renderRecords(); updateSummary(); return; }
+    const token = S.recToken = (S.recToken || 0) + 1;
+    $('recCount').innerHTML = '<span class="mini-spin"></span>Loading records…';
+    google.script.run
+      .withSuccessHandler(rec => { if (token === S.recToken) { S.rec = rec; renderRecords(); updateSummary(); } })
+      .withFailureHandler(e => { if (token === S.recToken) { $('recCount').textContent = ''; status(e.message || e, true); } })
+      .getRecords({ date: date, q: q, branch: recordBranch() || '' });
+  }
+
+  function rowState(row) {
+    const m = S.marks[row];
+    if (!m) return '';
+    if (m.status === 'gone') return 'gone';
+    if (Object.keys(m.cells).length) return 'bad';
+    return m.status === 'ok' ? 'ok' : '';
+  }
+  function mark(row) { return S.marks[row] = S.marks[row] || { status: '', cells: {} }; }
+
+  function cellHtml(r, c, k, m) {
+    const flag = m.cells[c.letter];
+    const cls = (c.numeric ? 'num ' : '') + 'cell' + (flag ? ' flag' : '');
+    const v = esc(r.cells[k]);
+    return flag
+      ? `<td class="${cls}" data-k="${k}"><span class="was" title="Spreadsheet 2 says this. Click to undo.">${v || '(blank)'}</span>` +
+        `<input class="photo" placeholder="Photo says…" value="${esc(flag.photo || '')}"></td>`
+      : `<td class="${cls}" data-k="${k}" title="Click if the photo shows something different">${v}</td>`;
+  }
+  function renderRecords() {
+    const rec = S.rec;
+    if (!rec) {
+      $('recHead').innerHTML = ''; $('rows').innerHTML = ''; $('recFoot').innerHTML = ''; $('recCount').textContent = '';
+      $('recEmpty').style.display = S.cur ? '' : 'none';
+      $('recEmpty').innerHTML = `${ICON.cal}<b>Type the date written on the logbook page</b>` +
+        `<span>…or search by name, CI# or amount to find records on any date.</span>`;
+      return;
+    }
+    const cols = rec.columns;
+    const showDate = !$('fDate').value.trim();   // with a date chosen, every row has that date
+    const dateTh = showDate ? '<th class="c-date">Date</th>' : '';
+    $('recHead').innerHTML = '<tr><th class="c-idx"></th>' + dateTh +
+      cols.map(c => `<th class="${c.numeric ? 'num' : ''}">${esc(c.header || c.letter)}</th>`).join('') + '<th class="c-act"></th></tr>';
+    $('rows').innerHTML = rec.rows.map((r, n) => {
+      const m = S.marks[r.row] || { status: '', cells: {} };
+      return `<tr data-row="${r.row}" data-n="${n}"><td class="c-idx">${n + 1}</td>${showDate ? `<td class="c-date">${esc(r.date)}</td>` : ''}` +
+        cols.map((c, k) => cellHtml(r, c, k, m)).join('') +
+        `<td class="c-act"><button class="act ok" title="Matches the photo">${ICON.check}</button>` +
+        `<button class="act gone" title="Not in the photo">${ICON.del}</button></td></tr>`;
+    }).join('');
+    [...$('rows').children].forEach(paintRow);
+    const sums = cols.map((c, k) => c.numeric && !idLike(c.header) ? rec.rows.reduce((t, r) => t + (r.nums[k] || 0), 0) : null);
+    $('recFoot').innerHTML = rec.rows.length && sums.some(x => x !== null)
+      ? (showDate ? '<tr><td></td><td class="c-date">Total</td>' : '<tr><td class="c-total">Total</td>') + sums.map(x => `<td class="num">${x === null ? '' : money(x)}</td>`).join('') + '<td></td></tr>' : '';
+    $('recEmpty').style.display = rec.rows.length ? 'none' : '';
+    $('recEmpty').innerHTML = `${ICON.search}<b>No records found</b><span>Spreadsheet 2 has nothing for this ` +
+      `${$('fDate').value ? 'date' : 'search'}${recordBranch() ? ' in ' + esc(recordBranch()) : ''}. ` +
+      `If the photo has rows, add them below.</span>`;
+    const b = recordBranch();
+    $('recCount').innerHTML = `<b>${rec.total}</b> record${rec.total === 1 ? '' : 's'}` +
+      (b ? ` · <span class="tag">${esc(b)}</span>` : '') +
+      (rec.truncated ? ` · showing the first ${rec.rows.length}, narrow the search` : '') +
+      (rec.duplicates ? ` · ${rec.duplicates} repeated row${rec.duplicates === 1 ? '' : 's'} hidden` : '');
+    applyView();
+  }
+  function paintRow(tr) {
+    const st = rowState(tr.dataset.row);
+    tr.className = st ? 'st-' + st : '';
+  }
+  function refreshRow(tr, focusLetter) {
+    const r = S.rec.rows[+tr.dataset.n];
+    const m = S.marks[r.row] || { status: '', cells: {} };
+    tr.querySelectorAll('td.cell').forEach(td => {
+      const k = +td.dataset.k;
+      td.outerHTML = cellHtml(r, S.rec.columns[k], k, m);
+    });
+    paintRow(tr);
+    if (focusLetter) {
+      const k = S.rec.columns.findIndex(c => c.letter === focusLetter);
+      const inp = tr.querySelector(`td.cell[data-k="${k}"] input`);
+      if (inp) inp.focus();
+    }
+    changed();
+  }
+  function changed() { S.dirty = true; disarmSave(); updateSummary(); applyView(); }
+
+  $('rows').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-row]');
+    if (!tr || e.target.tagName === 'INPUT') return;
+    const row = tr.dataset.row, act = e.target.closest('.act');
+    if (act) {
+      const m = mark(row);
+      const want = act.classList.contains('ok') ? 'ok' : 'gone';
+      const st = rowState(row);
+      m.cells = {};
+      m.status = st === want ? '' : want;   // clicking the active button again clears it
+      return refreshRow(tr);
+    }
+    const td = e.target.closest('td.cell');
+    if (!td) return;
+    const c = S.rec.columns[+td.dataset.k], r = S.rec.rows[+tr.dataset.n];
+    const m = mark(row);
+    if (e.target.closest('.was')) { delete m.cells[c.letter]; return refreshRow(tr); }
+    if (m.cells[c.letter]) return;
+    m.status = '';
+    m.cells[c.letter] = { photo: '', value: r.cells[+td.dataset.k], header: c.header };
+    refreshRow(tr, c.letter);
+  });
+  $('rows').addEventListener('input', e => {
+    if (!e.target.classList.contains('photo')) return;
+    const tr = e.target.closest('tr'), c = S.rec.columns[+e.target.closest('td').dataset.k];
+    S.marks[tr.dataset.row].cells[c.letter].photo = e.target.value;
+    S.dirty = true; disarmSave();
+  });
+  $('rows').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.classList.contains('photo')) e.target.blur();
+  });
+
+  // ---- rows that are only in the photo ----
+  function renderExtras(focusLast) {
+    $('extras').innerHTML = S.extras.map((x, i) =>
+      `<div class="extra" data-i="${i}"><span class="tag warn">Only in photo</span>` +
+      `<input value="${esc(x)}" placeholder="What the photo has: name, CI#, amounts…">` +
+      `<button class="del" title="Remove">${ICON.del}</button></div>`).join('');
+    if (focusLast) { const ins = $('extras').querySelectorAll('input'); if (ins.length) ins[ins.length - 1].focus(); }
+  }
+  $('extras').addEventListener('input', e => {
+    const box = e.target.closest('.extra');
+    if (box) { S.extras[+box.dataset.i] = e.target.value; changed(); }
+  });
+  $('extras').addEventListener('click', e => {
+    const box = e.target.closest('.extra');
+    if (box && e.target.closest('.del')) { S.extras.splice(+box.dataset.i, 1); renderExtras(); changed(); }
+  });
+
+  // ---- summary tiles (click one to show only that category) ----
+  function updateSummary() {
+    const rows = S.rec ? S.rec.rows : [];
+    const n = st => rows.filter(r => st.includes(rowState(r.row))).length;
+    const bad = n(['bad', 'gone']), extra = S.extras.filter(x => x.trim()).length;
+    $('cBad').textContent = bad + extra;
+    $('cUn').textContent = n(['']);
+    $('cOk').textContent = n(['ok']);
+    $('cExtra').textContent = extra;
+    $('tiles').querySelector('.t-bad').classList.toggle('hot', bad + extra > 0);
+    $('save').lastChild.textContent = S.saveArmed ? 'Save anyway' : 'Save review' + (S.dirty ? ' •' : '');
+    updateNote();
+  }
+  function applyView() {
+    const show = { all: () => true, bad: st => st === 'bad' || st === 'gone', unchecked: st => st === '', ok: st => st === 'ok', extra: () => false }[S.view];
+    [...$('rows').children].forEach(tr => { tr.style.display = show(rowState(tr.dataset.row)) ? '' : 'none'; });
+    [...$('tiles').children].forEach(t => t.classList.toggle('active', t.dataset.view === S.view));
+    $('extras').classList.toggle('dim', S.view !== 'all' && S.view !== 'extra' && S.view !== 'bad');
+  }
+  $('tiles').addEventListener('click', e => {
+    const t = e.target.closest('.stat');
+    if (!t) return;
+    S.view = S.view === t.dataset.view ? 'all' : t.dataset.view;
+    applyView();
+    if (S.view === 'extra') $('extras').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  $('markRest').onclick = () => {
+    if (!S.rec) return;
+    S.rec.rows.forEach(r => { if (rowState(r.row) === '') mark(r.row).status = 'ok'; });
+    [...$('rows').children].forEach(paintRow);
+    changed();
+  };
+
+  // ---- filters ----
+  function shiftDay(d) {
+    const m = $('fDate').value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+    const base = m ? new Date(+(m[3].length === 2 ? '20' + m[3] : m[3]), +m[1] - 1, +m[2]) : new Date();
+    if (m) base.setDate(base.getDate() + d);
+    const p = x => ('0' + x).slice(-2);
+    $('fDate').value = p(base.getMonth() + 1) + '/' + p(base.getDate()) + '/' + String(base.getFullYear()).slice(2);
+    loadRecords();
+  }
+  $('dayPrev').onclick = () => shiftDay(-1);
+  $('dayNext').onclick = () => shiftDay(1);
+  $('fDate').addEventListener('change', loadRecords);
+  $('fDate').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('fDate').blur(); } });
+  $('fSearch').addEventListener('input', () => { clearTimeout(S.searchTimer); S.searchTimer = setTimeout(loadRecords, 400); });
+
+  // ---- notices ----
   function flash(msg) {
     S.flash = msg;
     updateNote();
     clearTimeout(S.flashTimer);
-    S.flashTimer = setTimeout(() => { if (S.flash === msg) { S.flash = ''; updateNote(); } }, 5000);
+    S.flashTimer = setTimeout(() => { if (S.flash === msg) { S.flash = ''; updateNote(); } }, 6000);
   }
-  function pendingCells() { return $('rows').querySelectorAll('input.pre').length; }
+  function uncheckedCount() { return S.rec ? S.rec.rows.filter(r => rowState(r.row) === '').length : 0; }
   function updateNote() {
-    const n = pendingCells();
-    const note = $('note');
-    $('markChecked').style.display = n ? '' : 'none';
-    if (n) {
-      $('noteText').innerHTML = S.saveArmed
-        ? `<b>${n}</b> blue cell${n > 1 ? 's were' : ' was'} filled from Spreadsheet 2 and not checked. Click <b>Save anyway</b> to save as is.`
-        : `<b>${n}</b> cell${n > 1 ? 's' : ''} filled from Spreadsheet 2 (blue). Check them against the photo and fix any that differ.`;
-    } else {
-      $('noteText').textContent = S.flash || '';
-    }
-    note.classList.toggle('show', !!(n || S.flash));
-    note.classList.toggle('armed', !!(n && S.saveArmed));
+    const n = S.saveArmed ? uncheckedCount() : 0;
+    $('noteText').innerHTML = n
+      ? `<b>${n}</b> record${n > 1 ? 's are' : ' is'} not checked against the photo. Click <b>Save anyway</b> to save without them, or use <b>Rest match</b> if they all match.`
+      : esc(S.flash || '');
+    $('note').classList.toggle('show', !!(n || S.flash));
+    $('note').classList.toggle('armed', !!n);
   }
   function disarmSave() {
     if (!S.saveArmed) return;
     S.saveArmed = false;
-    $('save').lastChild.textContent = 'Save & compare';
+    updateSummary();
   }
-  $('markChecked').onclick = () => {
-    $('rows').querySelectorAll('input.pre').forEach(inp => inp.classList.remove('pre'));
-    disarmSave();
-    updateNote();
-  };
-  $('rows').addEventListener('keydown', e => {
-    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
-    e.preventDefault();
-    const inputs = [...$('rows').querySelectorAll('input')];
-    const i = inputs.indexOf(e.target);
-    if (i === inputs.length - 1) addRow(null, true); else inputs[i + 1].focus();
-  });
 
-  // ---- save & results ----
+  // ---- save ----
   function save() {
     if (!S.cur) return;
-    if (pendingCells() && !S.saveArmed) {
-      S.saveArmed = true;
-      $('save').lastChild.textContent = 'Save anyway';
-      updateNote();
-      return;
-    }
-    const trs = [...$('rows').children];
-    const rows = trs.map(rowValues);
-    const unchecked = trs.map(tr => !!tr.querySelector('input.pre'));
-    disarmSave();
+    const date = $('fDate').value.trim();
+    if (!date) { flash('Type the date written on the logbook page first.'); $('fDate').focus(); return; }
+    if (uncheckedCount() && !S.saveArmed) { S.saveArmed = true; updateSummary(); return; }
+    const lines = [];
+    Object.keys(S.marks).forEach(row => {
+      const st = rowState(row), m = S.marks[row];
+      if (st === 'ok') lines.push({ row: row, status: 'Match' });
+      else if (st === 'gone') lines.push({ row: row, status: 'Not in photo' });
+      else if (st === 'bad') Object.keys(m.cells).forEach(l => lines.push({
+        row: row, letter: l, header: m.cells[l].header, value: m.cells[l].value, status: 'Not match', photo: m.cells[l].photo,
+      }));
+    });
+    S.extras.filter(x => x.trim()).forEach(x => lines.push({ status: 'Only in photo', photo: x.trim() }));
     $('save').disabled = true;
     status('Saving', false, true);
     google.script.run
-      .withSuccessHandler(res => {
+      .withSuccessHandler(c => {
         $('save').disabled = false;
+        S.dirty = false; S.saveArmed = false;
         S.cur.done = true;
         $('pageInfo').innerHTML = 'Row ' + S.cur.row + ' · saved' + (S.cur.branch ? `<span class="tag">${esc(S.cur.branch)}</span>` : '');
-        showResults(res);
+        updateSummary();
+        flash(`Saved to the Review tab: ${c.match} match · ${c.notMatch} value${c.notMatch === 1 ? '' : 's'} not matching · ` +
+          `${c.notInPhoto} not in photo · ${c.onlyInPhoto} only in photo.`);
         loadSubs(S.cur.key);
       })
       .withFailureHandler(e => { $('save').disabled = false; status(e.message || e, true); })
-      .saveEntries(S.cur.key, S.cur.row, rows, S.cur.branch || '', unchecked);
-  }
-  function showResults(res) {
-    if (!res.length) {
-      $('results').innerHTML = '<div class="hint">' + ICON.info + 'Saved. No columns to compare. Check the column matching in Scanner Config.</div>';
-      return;
-    }
-    const cls = s => s.indexOf('✅') === 0 ? 's-ok' : s.indexOf('⚠') === 0 ? 's-check' : 's-bad';
-    const count = c => res.filter(r => cls(r[7]) === c).length;
-    const fmt = v => typeof v === 'number' ? money(v) : esc(v);
-    $('results').innerHTML =
-      '<div class="summary"><span class="card-title" style="margin-right:6px">Comparison</span>' +
-      `<span class="pill s-ok">✓ ${count('s-ok')} match</span><span class="pill s-check">! ${count('s-check')} check</span><span class="pill s-bad">✕ ${count('s-bad')} mismatch</span></div>` +
-      res.map(r => `<div class="res">
-          <div class="f">${esc(r[3])}<small>col ${esc(r[1])} · ${esc(r[0])}${r[9] ? ' · ' + esc(r[9]) : ''}</small></div>
-          <span class="pill ${cls(r[7])}">${esc(String(r[7]).replace(/^\S+\s/, ''))}</span>
-          <div class="vals">Logbook <b>${fmt(r[4]) || '—'}</b> · Spreadsheet 2 <b>${fmt(r[5]) || '—'}</b>${r[6] !== '' && r[6] !== 0 ? ' · Diff <b>' + fmt(r[6]) + '</b>' : ''}</div>
-          ${r[8] ? `<div class="note">${esc(r[8])}</div>` : ''}
-        </div>`).join('');
+      .saveReview(S.cur.key, S.cur.row, recordBranch() || '', date, lines);
   }
 
   // ---- wiring ----
@@ -700,10 +849,10 @@
     window.addEventListener('mouseup', () => { drag = null; v.classList.remove('panning'); });
     window.addEventListener('resize', updatePannable);
   })();
-  $('addRow').onclick = () => { addRow(null, true); totals(); };
+  $('addRow').onclick = () => { S.extras.push(''); S.dirty = true; renderExtras(true); updateSummary(); };
   $('save').onclick = save;
   $('bannerClose').onclick = () => $('banner').classList.remove('show');
-  $('results').innerHTML = HINT;
+  resetReview();
   loadSubs();
 </script>
 </body>

@@ -5,7 +5,6 @@
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Scanner')
     .addItem('Open scanner', 'openScanner')
-    .addItem('Re-run comparison', 'runComparisonFromMenu')
     .addSeparator()
     .addItem('Set up / refresh column matching', 'setupScanner')
     .addToUi();
@@ -16,24 +15,18 @@ function openScanner() {
   SpreadsheetApp.getUi().showModelessDialog(html, 'Logbook Scanner');
 }
 
-function runComparisonFromMenu() {
-  const n = runComparison_().length;
-  SpreadsheetApp.getActive().getSheetByName(SHEETS.RESULTS).activate();
-  SpreadsheetApp.getActive().toast(n + ' comparison rows written.', 'Scanner');
-}
-
-/** Form submissions that have at least one photo (newest first), plus the settings the panel needs. */
+/** Form submissions that have at least one photo (newest first) and the branch names (A–Z). */
 function getPanelData() {
   const s = getSettings_();
   const sh = getResponsesSheet_(s);
   const last = sh.getLastRow();
-  const result = { vatRate: s.vatRate, tolerance: s.tolerance, submissions: [], branches: [] };
+  const result = { submissions: [], branches: [] };
   if (last < 2) return result;
   const jc = colToNum_(s.journalCol), rc = colToNum_(s.receiptCol);
   const bc = branchColumn_(s, sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0]);
   const vals = sh.getRange(2, 1, last - 1, Math.max(jc, rc, bc, 2)).getDisplayValues();
   const done = {};
-  readEntries_().forEach(e => { done[e.submission] = true; });
+  readReview_().forEach(r => { done[r[0]] = true; });
   result.submissions = vals.map((r, i) => {
     const key = (i + 2) + '|' + r[0];
     return {
@@ -91,77 +84,4 @@ function getImage(fileId) {
       'Try again in a minute, or use "Open in Drive".';
   }
   return info;
-}
-
-/** Rows already typed in for one submission. */
-function getEntries(key) {
-  return readEntries_().filter(e => e.submission === key).map(e => e.values);
-}
-
-/**
- * Replaces the typed rows for one submission, re-runs the comparison and
- * returns the comparison rows for the dates on this page.
- * unchecked[i] is true when row i still has values auto-filled from Spreadsheet 2
- * that nobody confirmed against the photo; that is recorded in "Row check".
- */
-function saveEntries(key, responseRow, rows, branch, unchecked) {
-  const lock = LockService.getDocumentLock();
-  lock.waitLock(20000);
-  try {
-    const s = getSettings_();
-    const who = Session.getActiveUser().getEmail();
-    const now = new Date();
-    const out = rows
-      .map((r, n) => ({ r: r, unchecked: !!(unchecked && unchecked[n]) }))
-      .filter(x => x.r.some(v => String(v).trim() !== ''))
-      .map(x => {
-        const values = FIELDS.map((f, i) => NUMERIC_FIELDS.indexOf(f) >= 0 && x.r[i] !== '' ? toNumber_(x.r[i]) : x.r[i]);
-        const check = rowCheck_(values, s) + (x.unchecked ? ' · filled from Spreadsheet 2, not checked' : '');
-        return [key, responseRow].concat(values, [check, who, now, branch || '']);
-      });
-    if (out.some(r => !normDate_(r[2]))) throw new Error('Every row needs a DATE.');
-
-    const sh = ensureSheet_(SHEETS.ENTRIES, ENTRY_HEADERS);
-    const last = sh.getLastRow();
-    if (last > 1) {
-      const keys = sh.getRange(2, 1, last - 1, 1).getDisplayValues();
-      for (let i = keys.length - 1; i >= 0; i--) if (keys[i][0] === key) sh.deleteRow(i + 2);
-    }
-    if (out.length) sh.getRange(sh.getLastRow() + 1, 1, out.length, out[0].length).setValues(out);
-    SpreadsheetApp.flush();
-    const dates = {};
-    out.forEach(r => { dates[normDate_(r[2])] = true; });
-    return runComparison_().filter(r => dates[r[0]]);
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-/** Arithmetic check on one logbook row: VAT ≈ rate × VAT SALE, and CASH + CARD ≈ VAT SALE + VAT. */
-function rowCheck_(values, s) {
-  const get = f => values[FIELDS.indexOf(f)];
-  const vatSale = get('VAT SALE'), vat = get('12% VAT');
-  if (vatSale === '' || vatSale === null) return 'OK';
-  const problems = [];
-  const vatExpected = toNumber_(vatSale) * s.vatRate;
-  if (vat !== '' && Math.abs(toNumber_(vat) - vatExpected) > s.tolerance) {
-    problems.push('VAT should be ≈ ' + vatExpected.toFixed(2));
-  }
-  const paid = toNumber_(get('CASH')) + toNumber_(get('CARD'));
-  const gross = toNumber_(vatSale) + toNumber_(vat);
-  if (paid && Math.abs(paid - gross) > s.tolerance) {
-    problems.push('CASH+CARD (' + paid.toFixed(2) + ') ≠ VAT SALE+VAT (' + gross.toFixed(2) + ')');
-  }
-  return problems.length ? '⚠ ' + problems.join('; ') : 'OK';
-}
-
-/** [{submission, branch, values:[DATE, NAME, ...]}] from the Journal Entries tab. */
-function readEntries_() {
-  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.ENTRIES);
-  if (!sh || sh.getLastRow() < 2) return [];
-  return sh.getRange(2, 1, sh.getLastRow() - 1, ENTRY_HEADERS.length).getValues().map(r => ({
-    submission: String(r[0]),
-    branch: String(r[ENTRY_HEADERS.length - 1]).trim(),
-    values: r.slice(2, 2 + FIELDS.length).map((v, i) => i === 0 ? normDate_(v) : v),
-  }));
 }

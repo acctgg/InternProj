@@ -6,17 +6,16 @@
 
 const SHEETS = {
   CONFIG: 'Scanner Config',
-  ENTRIES: 'Journal Entries',
-  RESULTS: 'Comparison',
+  REVIEW: 'Review',
 };
 
-// Columns of the handwritten Sales Journal, in logbook order.
-const FIELDS = ['DATE', 'NAME', 'CI#', 'CASH', 'CARD', 'VAT SALE', '12% VAT'];
-const NUMERIC_FIELDS = ['CASH', 'CARD', 'VAT SALE', '12% VAT'];
-const TOTAL_FIELD = 'TOTAL (CASH+CARD)';
+// How each Spreadsheet 2 column is used. Any other value left over from an older
+// version (CASH, NAME, ...) counts as SHOW.
+const DATE = 'DATE';
 const BRANCH = 'BRANCH';
+const SHOW = 'SHOW';
 const IGNORE = '(ignore)';
-const MAP_CHOICES = FIELDS.concat([TOTAL_FIELD, BRANCH, IGNORE]);
+const MAP_CHOICES = [DATE, BRANCH, SHOW, IGNORE];
 
 const DEFAULTS = [
   ['Spreadsheet 2 (URL or ID)', 'https://docs.google.com/spreadsheets/d/17ly2V1qu4DmwuT3efKzALchxsyJ5adj8AG8u2lBBe60/edit?gid=147027864'],
@@ -28,13 +27,9 @@ const DEFAULTS = [
   ['Sales Journal photo column', 'F'],
   ['Receipt / extra page photo column', 'G'],
   ['Branch column in Spreadsheet 1 (blank = find the "Branch" header)', ''],
-  ['Tolerance for amounts (±)', 1],
-  ['VAT rate', 0.12],
   ['Count identical Spreadsheet 2 rows once (yes/no)', 'yes'],
 ];
-const MAP_TITLE = 'Column matching: which logbook field is in each Spreadsheet 2 column?';
-
-const ENTRY_HEADERS = ['Submission', 'Response row'].concat(FIELDS, ['Row check', 'Entered by', 'Entered at', 'Branch']);
+const MAP_TITLE = 'Column matching: how is each Spreadsheet 2 column used? (DATE and BRANCH filter the records; SHOW columns are checked against the photo)';
 
 /** Settings are looked up by label, so tabs set up by an older version keep working. */
 function getSettings_() {
@@ -52,9 +47,7 @@ function getSettings_() {
     journalCol: String(v[6]).trim() || 'F',
     receiptCol: String(v[7]).trim() || 'G',
     branchCol: String(v[8]).trim(),
-    tolerance: Number(v[9]) || 0,
-    vatRate: Number(v[10]) || 0.12,
-    dedupe: !/^(no|n|false|0)$/i.test(String(v[11]).trim()),
+    dedupe: !/^(no|n|false|0)$/i.test(String(v[9]).trim()),
   };
 }
 
@@ -78,12 +71,12 @@ function setupScanner() {
   } else {
     addMissingSettings_(sh);
   }
-  ensureSheet_(SHEETS.ENTRIES, ENTRY_HEADERS);
-  ensureSheet_(SHEETS.RESULTS, RESULT_HEADERS);
+  ensureSheet_(SHEETS.REVIEW, REVIEW_HEADERS);
   refreshMapping_();
   SpreadsheetApp.getUi().alert(
     'Setup done.\n\nOpen the "' + SHEETS.CONFIG + '" tab and check the column-matching table: ' +
-    'each Spreadsheet 2 column needs the logbook field it holds. One column must be DATE.');
+    'one column must be DATE, the branch column should be BRANCH, and set every column ' +
+    'you want to check against the photo to SHOW.');
 }
 
 /** Adds settings introduced after the Config tab was created, just below the existing ones. */
@@ -133,7 +126,8 @@ function refreshMapping_() {
 
   const rows = letters.map(l => {
     const header = headers[colToNum_(l) - 1];
-    return [l, header, previous[l] || guessField_(header)];
+    const prev = previous[l];
+    return [l, header, prev ? (MAP_CHOICES.indexOf(prev) >= 0 ? prev : SHOW) : guessField_(header)];
   });
 
   const titleRow = mapTitleRow_(sh) || DEFAULTS.length + 3;
@@ -142,7 +136,7 @@ function refreshMapping_() {
   if (old > 0) sh.getRange(firstRow, 1, old, 3).clearContent().clearDataValidations();
   sh.getRange(titleRow, 1).setValue(MAP_TITLE).setFontWeight('bold');
   sh.getRange(titleRow + 1, 1, 1, 3)
-    .setValues([['Spreadsheet 2 column', 'Header in Spreadsheet 2', 'Logbook field']]).setFontWeight('bold');
+    .setValues([['Spreadsheet 2 column', 'Header in Spreadsheet 2', 'Use as']]).setFontWeight('bold');
   sh.getRange(firstRow, 1, rows.length, 3).setValues(rows);
   sh.getRange(firstRow, 3, rows.length, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(MAP_CHOICES, true).build());
@@ -150,16 +144,10 @@ function refreshMapping_() {
 
 function guessField_(header) {
   const h = String(header).toLowerCase();
-  if (/date/.test(h)) return 'DATE';
+  if (/date/.test(h)) return DATE;
   if (/branch|store|outlet/.test(h)) return BRANCH;
   if (/deposit|receivable|cheque|transfer|categor|type|other/.test(h)) return IGNORE;
-  if (/name|customer/.test(h)) return 'NAME';
-  if (/\bci\b|ci#|ci no|invoice|or no|receipt/.test(h)) return 'CI#';
-  if (/cash/.test(h)) return 'CASH';
-  if (/card|credit|debit/.test(h)) return 'CARD';
-  if (/vat/.test(h) && /sale|able/.test(h)) return 'VAT SALE';
-  if (/vat/.test(h)) return '12% VAT';
-  if (/total|gross|amount/.test(h)) return TOTAL_FIELD;
+  if (/name|customer|supplier|\bci\b|ci#|ci no|invoice|inv|or no|receipt|cash|card|credit|debit|vat|tin|total|gross|amount/.test(h)) return SHOW;
   return IGNORE;
 }
 
@@ -172,7 +160,10 @@ function readMapping_(includeIgnored) {
   if (n <= 0) return [];
   return sh.getRange(titleRow + 2, 1, n, 3).getValues()
     .filter(r => r[0] && (includeIgnored || (r[2] && r[2] !== IGNORE)))
-    .map(r => ({ letter: String(r[0]).trim(), col: colToNum_(String(r[0]).trim()), header: String(r[1]), field: r[2] }));
+    .map(r => ({
+      letter: String(r[0]).trim(), col: colToNum_(String(r[0]).trim()), header: String(r[1]),
+      field: MAP_CHOICES.indexOf(r[2]) >= 0 || !r[2] ? r[2] : SHOW,
+    }));
 }
 
 /** The reference tab in Spreadsheet 2. */
@@ -261,10 +252,3 @@ function normDate_(v) {
 }
 
 function pad2_(x) { return ('0' + x).slice(-2); }
-
-/** '₱1,234.50' → 1234.5; blank → 0. */
-function toNumber_(v) {
-  if (typeof v === 'number') return v;
-  const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
-  return isNaN(n) ? 0 : n;
-}

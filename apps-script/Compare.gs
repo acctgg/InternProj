@@ -1,201 +1,160 @@
 /**
- * Logbook Scanner: compares typed logbook rows with Spreadsheet 2, by date.
+ * Logbook Scanner: Spreadsheet 2 records for the panel, and the photo review.
  *
- * For every date (and branch) in "Journal Entries", the logbook rows are
- * compared with all Spreadsheet 2 rows that have the same date, and the same
- * branch when a Spreadsheet 2 column is matched to BRANCH:
- *   - amount fields: the totals for the day must agree within the tolerance
- *   - text fields (NAME, CI#): every value must appear on both sides
- *     (near-misses are flagged "Check" so typos can be told from real gaps)
+ * The panel lists Spreadsheet 2's records for the submission's branch, the
+ * logbook date and an optional search. A person compares them with the photo
+ * and marks values that don't match; the result is saved in the "Review" tab.
  */
 
-const RESULT_HEADERS = ['Date', 'Spreadsheet 2 column', 'Header', 'Logbook field',
-  'Logbook value', 'Spreadsheet 2 value', 'Difference', 'Status', 'Note', 'Branch'];
-const STATUS = { OK: '✅ Match', CHECK: '⚠️ Check', BAD: '❌ Mismatch', MISSING: '❌ Date missing' };
-const STATUS_COLORS = { '✅': '#d9f2d9', '⚠️': '#fff2cc', '❌': '#f8d7da' };
+const REVIEW_HEADERS = ['Submission', 'Response row', 'Branch', 'Logbook date', 'Spreadsheet 2 row',
+  'Column', 'Header', 'Spreadsheet 2 value', 'Status', 'Photo says', 'Reviewed by', 'Reviewed at'];
+const REVIEW = { MATCH: 'Match', NOT_MATCH: 'Not match', NOT_IN_PHOTO: 'Not in photo', ONLY_IN_PHOTO: 'Only in photo' };
+const REVIEW_COLORS = { 'Match': '#e6f6ef', 'Not match': '#fdecee', 'Not in photo': '#fdecee', 'Only in photo': '#fff4e0' };
+const RECORD_LIMIT = 300;
 
-/** Rebuilds the Comparison tab and returns its rows. */
-function runComparison_() {
+/**
+ * Spreadsheet 2 records matching filter {date, branch, q}.
+ * date: the date written on the logbook page (blank = any date, newest first).
+ * q: words that must all appear in the row's SHOW columns or date.
+ */
+function getRecords(filter) {
+  filter = filter || {};
   const s = getSettings_();
   const mapping = readMapping_(false);
-  const dateMap = mapping.filter(m => m.field === 'DATE')[0];
+  const dateMap = mapping.filter(m => m.field === DATE)[0];
   if (!dateMap) throw new Error('In "' + SHEETS.CONFIG + '", set one Spreadsheet 2 column to DATE.');
   const branchMap = mapping.filter(m => m.field === BRANCH)[0];
-  const others = mapping.filter(m => m !== dateMap && m !== branchMap);
+  const shown = mapping.filter(m => m.field === SHOW);
+  const out = {
+    columns: shown.map(m => ({ letter: m.letter, header: m.header, numeric: false })),
+    rows: [], total: 0, duplicates: 0, truncated: false, branchFiltered: !!(branchMap && filter.branch),
+  };
 
-  const book = {};
-  readEntries_().forEach(e => {
-    const d = e.values[0];
-    if (!d) return;
-    const k = d + '|' + e.branch;
-    (book[k] = book[k] || { date: d, branch: e.branch, rows: [] }).rows.push(e.values);
-  });
+  const d = filter.date ? normDate_(filter.date) : '';
+  if (filter.date && !d) throw new Error('Could not read the date "' + filter.date + '". Use mm/dd/yy.');
+  const words = String(filter.q || '').toLowerCase().split(/\s+/).filter(String);
 
   const src = openSource_(s);
   const lastRow = src.getLastRow();
+  if (lastRow <= s.headerRow) return out;
   const lastCol = Math.max.apply(null, mapping.map(m => m.col));
-  const data = lastRow > s.headerRow
-    ? src.getRange(s.headerRow + 1, 1, lastRow - s.headerRow, lastCol).getValues() : [];
-  const ref = {};
-  data.forEach(r => {
-    const d = normDate_(r[dateMap.col - 1]);
-    if (d) (ref[d] = ref[d] || []).push(r);
-  });
+  const range = src.getRange(s.headerRow + 1, 1, lastRow - s.headerRow, lastCol);
+  const vals = range.getValues();
+  const disp = range.getDisplayValues();
 
-  const out = [];
-  const byBranch = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
-  Object.keys(book).map(k => book[k])
-    .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : byBranch(a.branch, b.branch))
-    .forEach(g => {
-      const d = g.date, rows = g.rows;
-      let refRows = ref[d] || [];
-      const filtered = branchMap && g.branch;
-      if (filtered) refRows = refRows.filter(r => normText_(r[branchMap.col - 1]) === normText_(g.branch));
-      const before = refRows.length;
-      if (s.dedupe) refRows = dedupeRows_(refRows, mapping);
-      const dropped = before - refRows.length;
-      if (!refRows.length) {
-        out.push([d, dateMap.letter, dateMap.header, 'DATE', rows.length + ' logbook row(s)', '', '',
-          STATUS.MISSING, filtered ? 'This date is not in Spreadsheet 2 for branch "' + g.branch + '"'
-            : 'This date is not in Spreadsheet 2', g.branch]);
-        return;
-      }
-      others.forEach(m => {
-        const bookVals = rows.map(r => bookValue_(r, m.field));
-        const refVals = refRows.map(r => r[m.col - 1]);
-        const result = compareField_(m.field, bookVals, refVals, s.tolerance);
-        const counts = rows.length + ' logbook row(s) vs ' + refRows.length + ' Spreadsheet 2 row(s)' +
-          (dropped ? ' (' + dropped + ' duplicate row(s) ignored)' : '');
-        result[4] = result[4] ? counts + '. ' + result[4] : counts;
-        out.push([d, m.letter, m.header, m.field].concat(result, [g.branch]));
-      });
+  let idx = [];
+  for (let i = 0; i < vals.length; i++) {
+    const rowDate = normDate_(vals[i][dateMap.col - 1]);
+    if (!rowDate || (d && rowDate !== d)) continue;
+    if (out.branchFiltered && normText_(vals[i][branchMap.col - 1]) !== normText_(filter.branch)) continue;
+    if (words.length) {
+      const hay = (disp[i][dateMap.col - 1] + ' ' + shown.map(m => disp[i][m.col - 1]).join(' ')).toLowerCase();
+      if (!words.every(w => hay.indexOf(w) >= 0)) continue;
+    }
+    idx.push(i);
+  }
+  if (s.dedupe) {
+    // Spreadsheet 2 can list the same sale several times; count rows identical in every used column once.
+    const seen = {};
+    const before = idx.length;
+    idx = idx.filter(i => {
+      const sig = mapping.map(m => {
+        const v = vals[i][m.col - 1];
+        return v instanceof Date ? normDate_(v) : typeof v === 'number' ? String(round2_(v)) : normText_(v);
+      }).join('\u0001');
+      if (seen[sig]) return false;
+      seen[sig] = true;
+      return true;
     });
+    out.duplicates = before - idx.length;
+  }
+  if (!d) {
+    // Any date: newest first, sheet order within a day.
+    const key = i => normDate_(vals[i][dateMap.col - 1]);
+    idx.sort((a, b) => key(a) < key(b) ? 1 : key(a) > key(b) ? -1 : a - b);
+  }
+  out.total = idx.length;
+  out.truncated = idx.length > RECORD_LIMIT;
+  idx = idx.slice(0, RECORD_LIMIT);
 
-  writeResults_(out);
+  // A column is numeric when most of its filled cells hold numbers (right-aligned and totalled in the panel).
+  out.columns.forEach((c, k) => {
+    const col = shown[k].col - 1;
+    const filled = idx.filter(i => vals[i][col] !== '');
+    c.numeric = filled.length > 0 && filled.filter(i => typeof vals[i][col] === 'number').length * 2 > filled.length;
+  });
+  out.rows = idx.map(i => ({
+    row: s.headerRow + 1 + i,
+    date: shortDate_(vals[i][dateMap.col - 1]),
+    cells: shown.map(m => disp[i][m.col - 1]),
+    nums: shown.map(m => typeof vals[i][m.col - 1] === 'number' ? vals[i][m.col - 1] : null),
+  }));
+  return out;
+}
+
+/** What was saved for one submission: {date, marks: {row: {status, cells: {letter: {photo, value, header}}}}, extras: [photo text]} */
+function getReview(key) {
+  const out = { date: '', marks: {}, extras: [] };
+  readReview_().filter(r => r[0] === key).forEach(r => {
+    out.date = out.date || shortDate_(r[3]);
+    const row = String(r[4]), letter = String(r[5]), status = String(r[8]), photo = String(r[9]);
+    if (status === REVIEW.ONLY_IN_PHOTO) { out.extras.push(photo); return; }
+    const m = out.marks[row] = out.marks[row] || { status: status, cells: {} };
+    if (status === REVIEW.NOT_MATCH) { m.status = status; if (letter) m.cells[letter] = { photo: photo, value: String(r[7]), header: String(r[6]) }; }
+    else if (m.status !== REVIEW.NOT_MATCH) m.status = status;
+  });
   return out;
 }
 
 /**
- * Spreadsheet 2 rows for one date (and branch, when a column is matched to BRANCH),
- * shaped like logbook rows [DATE, NAME, CI#, CASH, CARD, VAT SALE, 12% VAT] so the
- * panel can pre-fill the grid. Fields with no matched column come back blank.
+ * Replaces the saved review of one submission.
+ * lines: [{row, letter, header, value, status, photo}]; row/letter are blank for "Only in photo".
  */
-function getDayRows(dateText, branch) {
-  const d = normDate_(dateText);
-  if (!d) return [];
-  const s = getSettings_();
-  const mapping = readMapping_(false);
-  const dateMap = mapping.filter(m => m.field === 'DATE')[0];
-  if (!dateMap) throw new Error('In "' + SHEETS.CONFIG + '", set one Spreadsheet 2 column to DATE.');
-  const branchMap = mapping.filter(m => m.field === BRANCH)[0];
-  const cols = FIELDS.map(f => {
-    const m = mapping.filter(x => x.field === f)[0];
-    return m ? m.col : 0;
-  });
-  const src = openSource_(s);
-  const lastRow = src.getLastRow();
-  if (lastRow <= s.headerRow) return [];
-  const lastCol = Math.max.apply(null, mapping.map(m => m.col));
-  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
-  let rows = src.getRange(s.headerRow + 1, 1, lastRow - s.headerRow, lastCol).getValues()
-    .filter(r => normDate_(r[dateMap.col - 1]) === d)
-    .filter(r => !branchMap || !branch || normText_(r[branchMap.col - 1]) === normText_(branch));
-  if (s.dedupe) rows = dedupeRows_(rows, mapping);
-  return rows.map(r => cols.map((c, i) => {
-      if (i === 0) return d;
-      const v = c ? r[c - 1] : '';
-      if (NUMERIC_FIELDS.indexOf(FIELDS[i]) >= 0 && toNumber_(v) === 0) return '';  // logbooks leave zero amounts blank
-      return v instanceof Date ? Utilities.formatDate(v, tz, 'MM/dd/yy') : v;  // Dates can't be sent to the panel
-    }));
-}
-
-/**
- * Drops Spreadsheet 2 rows that repeat an earlier row in every matched column
- * (Spreadsheet 2 can list the same sale several times). Match an invoice/CI#
- * column so that two separate sales with the same amount are never merged.
- */
-function dedupeRows_(rows, mapping) {
-  const seen = {};
-  return rows.filter(r => {
-    const sig = mapping.map(m => {
-      const v = r[m.col - 1];
-      return v instanceof Date ? normDate_(v) : typeof v === 'number' ? String(round2_(v)) : normText_(v);
-    }).join('\u0001');
-    if (seen[sig]) return false;
-    seen[sig] = true;
-    return true;
-  });
-}
-
-function bookValue_(row, field) {
-  if (field === TOTAL_FIELD) {
-    return toNumber_(row[FIELDS.indexOf('CASH')]) + toNumber_(row[FIELDS.indexOf('CARD')]);
-  }
-  return row[FIELDS.indexOf(field)];
-}
-
-/** → [logbook value, Spreadsheet 2 value, difference, status, note] */
-function compareField_(field, bookVals, refVals, tolerance) {
-  if (NUMERIC_FIELDS.indexOf(field) >= 0 || field === TOTAL_FIELD) {
-    const a = round2_(bookVals.reduce((t, v) => t + toNumber_(v), 0));
-    const b = round2_(refVals.reduce((t, v) => t + toNumber_(v), 0));
-    const diff = round2_(a - b);
-    const ok = Math.abs(diff) <= tolerance + 1e-9;
-    return [a, b, diff, ok ? STATUS.OK : STATUS.BAD, ok ? '' : 'Day totals differ by ' + diff];
-  }
-
-  const bookSet = uniqueText_(bookVals);
-  const refSet = uniqueText_(refVals);
-  const refKeys = refSet.map(normText_);
-  const notes = [];
-  const used = {};
-  let bad = false, close = false;
-  bookSet.forEach(v => {
-    const k = normText_(v);
-    const exact = refKeys.indexOf(k);
-    if (exact >= 0) { used[exact] = true; return; }
-    let best = -1, bestScore = 0;
-    refKeys.forEach((r, i) => {
-      const score = similarity_(k, r);
-      if (score > bestScore) { best = i; bestScore = score; }
-    });
-    if (bestScore >= 0.8) {
-      used[best] = true;
-      close = true;
-      notes.push('"' + v + '" ≈ "' + refSet[best] + '"');
-    } else {
-      bad = true;
-      notes.push('"' + v + '" not in Spreadsheet 2');
+function saveReview(key, responseRow, branch, date, lines) {
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(20000);
+  try {
+    const d = normDate_(date);
+    if (!d) throw new Error('Type the date written on the logbook page before saving.');
+    const sh = ensureSheet_(SHEETS.REVIEW, REVIEW_HEADERS);
+    const last = sh.getLastRow();
+    if (last > 1) {
+      const keys = sh.getRange(2, 1, last - 1, 1).getDisplayValues();
+      for (let i = keys.length - 1; i >= 0; i--) if (keys[i][0] === key) sh.deleteRow(i + 2);
     }
-  });
-  refSet.forEach((v, i) => {
-    if (!used[i]) { bad = true; notes.push('"' + v + '" not in logbook'); }
-  });
-  const status = bad ? STATUS.BAD : close ? STATUS.CHECK : STATUS.OK;
-  return [bookSet.join(', '), refSet.join(', '), '', status, notes.join('; ')];
+    const who = Session.getActiveUser().getEmail();
+    const out = lines.map(l => [key, responseRow, branch || '', d, l.row || '', l.letter || '', l.header || '',
+      l.value == null ? '' : l.value, l.status, l.photo || '', who]
+      .map(String).concat([new Date()]));
+    if (out.length) {
+      const start = sh.getLastRow() + 1;
+      const rng = sh.getRange(start, 1, out.length, REVIEW_HEADERS.length);
+      // Plain text so values like "06497" and "1,338.00" are stored exactly as shown.
+      sh.getRange(start, 1, out.length, REVIEW_HEADERS.length - 1).setNumberFormat('@');
+      rng.setValues(out);
+      rng.setBackgrounds(out.map(r => REVIEW_HEADERS.map(() => REVIEW_COLORS[r[8]] || null)));
+    }
+    const count = status => lines.filter(l => l.status === status).length;
+    return {
+      match: count(REVIEW.MATCH), notMatch: count(REVIEW.NOT_MATCH), notInPhoto: count(REVIEW.NOT_IN_PHOTO),
+      onlyInPhoto: count(REVIEW.ONLY_IN_PHOTO),
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
-function writeResults_(rows) {
-  const sh = ensureSheet_(SHEETS.RESULTS, RESULT_HEADERS);
-  const last = sh.getLastRow();
-  if (last > 1) sh.getRange(2, 1, last - 1, RESULT_HEADERS.length).clearContent().setBackground(null);
-  if (!rows.length) return;
-  sh.getRange(2, 1, rows.length, RESULT_HEADERS.length).setValues(rows);
-  sh.getRange(2, 1, rows.length, RESULT_HEADERS.length)
-    .setBackgrounds(rows.map(r => {
-      const color = STATUS_COLORS[Object.keys(STATUS_COLORS).filter(k => String(r[7]).indexOf(k) === 0)[0]] || null;
-      return RESULT_HEADERS.map(() => color);
-    }));
+/** All Review rows (display values), or [] if the tab doesn't exist yet. */
+function readReview_() {
+  const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.REVIEW);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, REVIEW_HEADERS.length).getDisplayValues();
 }
 
-function uniqueText_(vals) {
-  const seen = {};
-  return vals.map(v => String(v).trim()).filter(v => {
-    const k = normText_(v);
-    if (!k || seen[k]) return false;
-    seen[k] = true;
-    return true;
-  });
+/** Any date-ish value → 'MM/dd/yy', the way logbook dates are written. */
+function shortDate_(v) {
+  const d = normDate_(v);
+  return d ? d.slice(5, 7) + '/' + d.slice(8, 10) + '/' + d.slice(2, 4) : String(v);
 }
 
 function normText_(v) {
@@ -204,19 +163,4 @@ function normText_(v) {
 
 function round2_(n) {
   return Math.round(n * 100) / 100;
-}
-
-/** 1 = identical, 0 = nothing alike (Levenshtein-based). */
-function similarity_(a, b) {
-  if (!a.length || !b.length) return 0;
-  let prev = [];
-  for (let j = 0; j <= b.length; j++) prev[j] = j;
-  for (let i = 1; i <= a.length; i++) {
-    const cur = [i];
-    for (let j = 1; j <= b.length; j++) {
-      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    }
-    prev = cur;
-  }
-  return 1 - prev[b.length] / Math.max(a.length, b.length);
 }
