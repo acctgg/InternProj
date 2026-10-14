@@ -240,9 +240,20 @@ function expandColumns_(spec) {
 }
 
 /** Any date-ish value → 'yyyy-MM-dd' ('' if not a date). Text dates are read month-first. */
+// normDate_ runs once per Spreadsheet 2 row, so the time zone and formatted dates are cached:
+// asking Google for them on every row made large sheets take minutes.
+let TZ_ = null;
+const DATE_CACHE_ = {};
 function normDate_(v) {
-  const tz = SpreadsheetApp.getActive().getSpreadsheetTimeZone();
-  if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+  if (v instanceof Date) {
+    const t = v.getTime();
+    if (isNaN(t)) return '';
+    if (!(t in DATE_CACHE_)) {
+      TZ_ = TZ_ || SpreadsheetApp.getActive().getSpreadsheetTimeZone();
+      DATE_CACHE_[t] = Utilities.formatDate(v, TZ_, 'yyyy-MM-dd');
+    }
+    return DATE_CACHE_[t];
+  }
   const t = String(v).trim();
   let m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (m) return m[1] + '-' + pad2_(m[2]) + '-' + pad2_(m[3]);

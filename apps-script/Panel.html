@@ -571,10 +571,15 @@
     const date = $('fDate').value.trim(), q = $('fSearch').value.trim();
     if (!S.cur || (!date && !q)) { S.rec = null; renderRecords(); updateSummary(); return; }
     const token = S.recToken = (S.recToken || 0) + 1;
+    S.recLoading = true;
     $('recCount').innerHTML = '<span class="mini-spin"></span>Loading records…';
+    setTimeout(() => {
+      if (token === S.recToken && S.recLoading) $('recCount').innerHTML = '<span class="mini-spin"></span>Still loading… Spreadsheet 2 is large. ' +
+        'If this takes more than a minute, check <b>Extensions → Apps Script → Executions</b> for an error.';
+    }, 15000);
     google.script.run
-      .withSuccessHandler(rec => { if (token === S.recToken) { S.rec = rec; renderRecords(); updateSummary(); } })
-      .withFailureHandler(e => { if (token === S.recToken) { $('recCount').textContent = ''; status(e.message || e, true); } })
+      .withSuccessHandler(rec => { if (token === S.recToken) { S.recLoading = false; S.rec = rec; renderRecords(); updateSummary(); } })
+      .withFailureHandler(e => { if (token === S.recToken) { S.recLoading = false; $('recCount').textContent = ''; status(e.message || e, true); } })
       .getRecords({ date: date, q: q, branch: recordBranch() || '' });
   }
 

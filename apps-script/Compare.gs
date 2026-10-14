@@ -37,21 +37,36 @@ function getRecords(filter) {
   const src = openSource_(s);
   const lastRow = src.getLastRow();
   if (lastRow <= s.headerRow) return out;
-  const lastCol = Math.max.apply(null, mapping.map(m => m.col));
-  const range = src.getRange(s.headerRow + 1, 1, lastRow - s.headerRow, lastCol);
-  const vals = range.getValues();
-  const disp = range.getDisplayValues();
+  const first = s.headerRow + 1, n = lastRow - s.headerRow;
 
+  // Spreadsheet 2 can have tens of thousands of rows: read the date (and branch) column first,
+  // then only the used columns, and only between the first and last matching row.
+  const colVals = c => src.getRange(first, c, n, 1).getValues().map(r => r[0]);
+  const dates = colVals(dateMap.col).map(normDate_);
+  const branches = out.branchFiltered ? colVals(branchMap.col).map(normText_) : null;
+  const wantBranch = out.branchFiltered ? normText_(filter.branch) : '';
   let idx = [];
-  for (let i = 0; i < vals.length; i++) {
-    const rowDate = normDate_(vals[i][dateMap.col - 1]);
-    if (!rowDate || (d && rowDate !== d)) continue;
-    if (out.branchFiltered && normText_(vals[i][branchMap.col - 1]) !== normText_(filter.branch)) continue;
-    if (words.length) {
-      const hay = (disp[i][dateMap.col - 1] + ' ' + shown.map(m => disp[i][m.col - 1]).join(' ')).toLowerCase();
-      if (!words.every(w => hay.indexOf(w) >= 0)) continue;
-    }
+  for (let i = 0; i < n; i++) {
+    if (!dates[i] || (d && dates[i] !== d)) continue;
+    if (branches && branches[i] !== wantBranch) continue;
     idx.push(i);
+  }
+  if (!idx.length) return out;
+  const lo = idx[0], hi = idx[idx.length - 1], span = hi - lo + 1;
+  const vals = {}, disp = {};
+  mapping.forEach(m => {
+    const rng = src.getRange(first + lo, m.col, span, 1);
+    vals[m.col] = rng.getValues().map(r => r[0]);
+    if (m.field === SHOW || m === dateMap) disp[m.col] = rng.getDisplayValues().map(r => r[0]);
+  });
+  const val = (i, m) => vals[m.col][i - lo];
+  const shownText = (i, m) => disp[m.col][i - lo];
+
+  if (words.length) {
+    idx = idx.filter(i => {
+      const hay = (shownText(i, dateMap) + ' ' + shown.map(m => shownText(i, m)).join(' ')).toLowerCase();
+      return words.every(w => hay.indexOf(w) >= 0);
+    });
   }
   if (s.dedupe) {
     // Spreadsheet 2 can list the same sale several times; count rows identical in every used column once.
@@ -59,7 +74,7 @@ function getRecords(filter) {
     const before = idx.length;
     idx = idx.filter(i => {
       const sig = mapping.map(m => {
-        const v = vals[i][m.col - 1];
+        const v = val(i, m);
         return v instanceof Date ? normDate_(v) : typeof v === 'number' ? String(round2_(v)) : normText_(v);
       }).join('\u0001');
       if (seen[sig]) return false;
@@ -70,8 +85,7 @@ function getRecords(filter) {
   }
   if (!d) {
     // Any date: newest first, sheet order within a day.
-    const key = i => normDate_(vals[i][dateMap.col - 1]);
-    idx.sort((a, b) => key(a) < key(b) ? 1 : key(a) > key(b) ? -1 : a - b);
+    idx.sort((a, b) => dates[a] < dates[b] ? 1 : dates[a] > dates[b] ? -1 : a - b);
   }
   out.total = idx.length;
   out.truncated = idx.length > RECORD_LIMIT;
@@ -79,15 +93,15 @@ function getRecords(filter) {
 
   // A column is numeric when most of its filled cells hold numbers (right-aligned and totalled in the panel).
   out.columns.forEach((c, k) => {
-    const col = shown[k].col - 1;
-    const filled = idx.filter(i => vals[i][col] !== '');
-    c.numeric = filled.length > 0 && filled.filter(i => typeof vals[i][col] === 'number').length * 2 > filled.length;
+    const m = shown[k];
+    const filled = idx.filter(i => val(i, m) !== '');
+    c.numeric = filled.length > 0 && filled.filter(i => typeof val(i, m) === 'number').length * 2 > filled.length;
   });
   out.rows = idx.map(i => ({
-    row: s.headerRow + 1 + i,
-    date: shortDate_(vals[i][dateMap.col - 1]),
-    cells: shown.map(m => disp[i][m.col - 1]),
-    nums: shown.map(m => typeof vals[i][m.col - 1] === 'number' ? vals[i][m.col - 1] : null),
+    row: first + i,
+    date: shortDate_(dates[i]),
+    cells: shown.map(m => shownText(i, m)),
+    nums: shown.map(m => typeof val(i, m) === 'number' ? val(i, m) : null),
   }));
   return out;
 }
