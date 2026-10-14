@@ -50,7 +50,10 @@ function runComparison_() {
     others.forEach(m => {
       const bookVals = rows.map(r => bookValue_(r, m.field));
       const refVals = refRows.map(r => r[m.col - 1]);
-      out.push([d, m.letter, m.header, m.field].concat(compareField_(m.field, bookVals, refVals, s.tolerance)));
+      const result = compareField_(m.field, bookVals, refVals, s.tolerance);
+      const counts = rows.length + ' logbook row(s) vs ' + refRows.length + ' Spreadsheet 2 row(s)';
+      result[4] = result[4] ? counts + '. ' + result[4] : counts;
+      out.push([d, m.letter, m.header, m.field].concat(result));
     });
   });
 
