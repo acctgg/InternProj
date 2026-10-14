@@ -68,7 +68,12 @@ time the columns change; choices you already made are kept.
 2. Pick a **branch** in the top-left dropdown. Branch names come from
    Spreadsheet 1 and are listed A–Z. *All branches* groups the
    submissions by branch, A–Z. The choice is remembered next time.
-3. Pick a submission. The newest pending one is shown first, and ✓ marks
+3. Pick a submission. The **list / 🔍 switch** in the top bar sets how
+   branches and submissions are browsed. Dropdown mode uses normal menus.
+   Search mode turns both pickers into search boxes: type any part of a
+   row number, date, email or branch (e.g. `10/12 annex`), use ↑ ↓ and
+   **Enter** to pick, and press **/** to jump to the submission search.
+   Each admin's choice is remembered. The newest pending one is shown first, and ✓ marks
    the ones already done.
 4. Read the photo. Use zoom, rotate and *Scan look* (grayscale with high
    contrast) to make the handwriting easier to read. Switch between
