@@ -27,10 +27,11 @@ function getPanelData() {
   const s = getSettings_();
   const sh = getResponsesSheet_(s);
   const last = sh.getLastRow();
-  const result = { vatRate: s.vatRate, tolerance: s.tolerance, submissions: [] };
+  const result = { vatRate: s.vatRate, tolerance: s.tolerance, submissions: [], branches: [] };
   if (last < 2) return result;
   const jc = colToNum_(s.journalCol), rc = colToNum_(s.receiptCol);
-  const vals = sh.getRange(2, 1, last - 1, Math.max(jc, rc, 2)).getDisplayValues();
+  const bc = branchColumn_(s, sh.getRange(1, 1, 1, sh.getLastColumn()).getDisplayValues()[0]);
+  const vals = sh.getRange(2, 1, last - 1, Math.max(jc, rc, bc, 2)).getDisplayValues();
   const done = {};
   readEntries_().forEach(e => { done[e.submission] = true; });
   result.submissions = vals.map((r, i) => {
@@ -42,9 +43,11 @@ function getPanelData() {
       who: r[1],
       journal: fileIds_(r[jc - 1]),
       receipt: fileIds_(r[rc - 1]),
+      branch: bc ? r[bc - 1].trim() : '',
       done: !!done[key],
     };
   }).filter(x => x.journal.length || x.receipt.length).reverse();
+  result.branches = sortBranches_(result.submissions.map(x => x.branch));
   return result;
 }
 
@@ -99,7 +102,7 @@ function getEntries(key) {
  * Replaces the typed rows for one submission, re-runs the comparison and
  * returns the comparison rows for the dates on this page.
  */
-function saveEntries(key, responseRow, rows) {
+function saveEntries(key, responseRow, rows, branch) {
   const lock = LockService.getDocumentLock();
   lock.waitLock(20000);
   try {
@@ -110,11 +113,11 @@ function saveEntries(key, responseRow, rows) {
       .filter(r => r.some(v => String(v).trim() !== ''))
       .map(r => {
         const values = FIELDS.map((f, i) => NUMERIC_FIELDS.indexOf(f) >= 0 && r[i] !== '' ? toNumber_(r[i]) : r[i]);
-        return [key, responseRow].concat(values, [rowCheck_(values, s), who, now]);
+        return [key, responseRow].concat(values, [rowCheck_(values, s), who, now, branch || '']);
       });
     if (out.some(r => !normDate_(r[2]))) throw new Error('Every row needs a DATE.');
 
-    const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.ENTRIES);
+    const sh = ensureSheet_(SHEETS.ENTRIES, ENTRY_HEADERS);
     const last = sh.getLastRow();
     if (last > 1) {
       const keys = sh.getRange(2, 1, last - 1, 1).getDisplayValues();
@@ -148,12 +151,13 @@ function rowCheck_(values, s) {
   return problems.length ? '⚠ ' + problems.join('; ') : 'OK';
 }
 
-/** [{submission, values:[DATE, NAME, ...]}] from the Journal Entries tab. */
+/** [{submission, branch, values:[DATE, NAME, ...]}] from the Journal Entries tab. */
 function readEntries_() {
   const sh = SpreadsheetApp.getActive().getSheetByName(SHEETS.ENTRIES);
   if (!sh || sh.getLastRow() < 2) return [];
-  return sh.getRange(2, 1, sh.getLastRow() - 1, 2 + FIELDS.length).getValues().map(r => ({
+  return sh.getRange(2, 1, sh.getLastRow() - 1, ENTRY_HEADERS.length).getValues().map(r => ({
     submission: String(r[0]),
-    values: r.slice(2).map((v, i) => i === 0 ? normDate_(v) : v),
+    branch: String(r[ENTRY_HEADERS.length - 1]).trim(),
+    values: r.slice(2, 2 + FIELDS.length).map((v, i) => i === 0 ? normDate_(v) : v),
   }));
 }

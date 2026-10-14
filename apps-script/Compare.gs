@@ -1,15 +1,16 @@
 /**
  * Logbook Scanner: compares typed logbook rows with Spreadsheet 2, by date.
  *
- * For every date in "Journal Entries", the logbook rows for that date are
- * compared with all Spreadsheet 2 rows that have the same date:
+ * For every date (and branch) in "Journal Entries", the logbook rows are
+ * compared with all Spreadsheet 2 rows that have the same date, and the same
+ * branch when a Spreadsheet 2 column is matched to BRANCH:
  *   - amount fields: the totals for the day must agree within the tolerance
  *   - text fields (NAME, CI#): every value must appear on both sides
  *     (near-misses are flagged "Check" so typos can be told from real gaps)
  */
 
 const RESULT_HEADERS = ['Date', 'Spreadsheet 2 column', 'Header', 'Logbook field',
-  'Logbook value', 'Spreadsheet 2 value', 'Difference', 'Status', 'Note'];
+  'Logbook value', 'Spreadsheet 2 value', 'Difference', 'Status', 'Note', 'Branch'];
 const STATUS = { OK: '✅ Match', CHECK: '⚠️ Check', BAD: '❌ Mismatch', MISSING: '❌ Date missing' };
 const STATUS_COLORS = { '✅': '#d9f2d9', '⚠️': '#fff2cc', '❌': '#f8d7da' };
 
@@ -19,17 +20,20 @@ function runComparison_() {
   const mapping = readMapping_(false);
   const dateMap = mapping.filter(m => m.field === 'DATE')[0];
   if (!dateMap) throw new Error('In "' + SHEETS.CONFIG + '", set one Spreadsheet 2 column to DATE.');
-  const others = mapping.filter(m => m !== dateMap);
+  const branchMap = mapping.filter(m => m.field === BRANCH)[0];
+  const others = mapping.filter(m => m !== dateMap && m !== branchMap);
 
   const book = {};
   readEntries_().forEach(e => {
     const d = e.values[0];
-    if (d) (book[d] = book[d] || []).push(e.values);
+    if (!d) return;
+    const k = d + '|' + e.branch;
+    (book[k] = book[k] || { date: d, branch: e.branch, rows: [] }).rows.push(e.values);
   });
 
   const src = openSource_(s);
   const lastRow = src.getLastRow();
-  const lastCol = Math.max.apply(null, [dateMap.col].concat(others.map(m => m.col)));
+  const lastCol = Math.max.apply(null, mapping.map(m => m.col));
   const data = lastRow > s.headerRow
     ? src.getRange(s.headerRow + 1, 1, lastRow - s.headerRow, lastCol).getValues() : [];
   const ref = {};
@@ -39,23 +43,29 @@ function runComparison_() {
   });
 
   const out = [];
-  Object.keys(book).sort().forEach(d => {
-    const rows = book[d];
-    const refRows = ref[d] || [];
-    if (!refRows.length) {
-      out.push([d, dateMap.letter, dateMap.header, 'DATE', rows.length + ' logbook row(s)', '', '',
-        STATUS.MISSING, 'This date is not in Spreadsheet 2']);
-      return;
-    }
-    others.forEach(m => {
-      const bookVals = rows.map(r => bookValue_(r, m.field));
-      const refVals = refRows.map(r => r[m.col - 1]);
-      const result = compareField_(m.field, bookVals, refVals, s.tolerance);
-      const counts = rows.length + ' logbook row(s) vs ' + refRows.length + ' Spreadsheet 2 row(s)';
-      result[4] = result[4] ? counts + '. ' + result[4] : counts;
-      out.push([d, m.letter, m.header, m.field].concat(result));
+  const byBranch = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true });
+  Object.keys(book).map(k => book[k])
+    .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : byBranch(a.branch, b.branch))
+    .forEach(g => {
+      const d = g.date, rows = g.rows;
+      let refRows = ref[d] || [];
+      const filtered = branchMap && g.branch;
+      if (filtered) refRows = refRows.filter(r => normText_(r[branchMap.col - 1]) === normText_(g.branch));
+      if (!refRows.length) {
+        out.push([d, dateMap.letter, dateMap.header, 'DATE', rows.length + ' logbook row(s)', '', '',
+          STATUS.MISSING, filtered ? 'This date is not in Spreadsheet 2 for branch "' + g.branch + '"'
+            : 'This date is not in Spreadsheet 2', g.branch]);
+        return;
+      }
+      others.forEach(m => {
+        const bookVals = rows.map(r => bookValue_(r, m.field));
+        const refVals = refRows.map(r => r[m.col - 1]);
+        const result = compareField_(m.field, bookVals, refVals, s.tolerance);
+        const counts = rows.length + ' logbook row(s) vs ' + refRows.length + ' Spreadsheet 2 row(s)';
+        result[4] = result[4] ? counts + '. ' + result[4] : counts;
+        out.push([d, m.letter, m.header, m.field].concat(result, [g.branch]));
+      });
     });
-  });
 
   writeResults_(out);
   return out;

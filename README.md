@@ -48,28 +48,34 @@ Google Form upload ─► Spreadsheet 1 (Form responses)
 | Spreadsheet 2 columns to compare | `C,D,X:AF` |
 | Spreadsheet 1: Form responses (URL or ID) | the Spreadsheet 1 link (`gid=921021716`); leave it blank if the tool lives in Spreadsheet 1 |
 | Sales Journal / extra page photo columns | `F` / `G` |
+| Branch column in Spreadsheet 1 | blank = the column whose header contains "Branch" |
 | Tolerance for amounts (±) | 1 |
 | VAT rate | 0.12 |
 
 Below the settings is the **column matching** table. The tool reads
 Spreadsheet 2's header for each of C, D and X–AF and guesses which logbook
 field each one holds. Check every row and fix it with the dropdown.
-**Exactly one column must be `DATE`.** Mark columns that have no logbook
+**Exactly one column must be `DATE`.** Set the column that holds the
+branch name to `BRANCH`, so each page is compared only with its own branch's
+rows. Mark columns that have no logbook
 equivalent `(ignore)`. Run *Set up / refresh column matching* again any
 time the columns change; choices you already made are kept.
 
 ## Daily use
 
 1. **Scanner → Open scanner.**
-2. Pick a submission. The newest pending one is shown first, and ✓ marks
+2. Pick a **branch** in the top-left dropdown. Branch names come from
+   Spreadsheet 1 and are listed A–Z. *All branches* groups the
+   submissions by branch, A–Z. The choice is remembered next time.
+3. Pick a submission. The newest pending one is shown first, and ✓ marks
    the ones already done.
-3. Read the photo. Use zoom, rotate and *Scan look* (grayscale with high
+4. Read the photo. Use zoom, rotate and *Scan look* (grayscale with high
    contrast) to make the handwriting easier to read. Switch between
    *Journal* and *Extra page* photos with the buttons above the photo.
-4. Type each logbook row. **Enter** moves to the next cell, a new row
+5. Type each logbook row. **Enter** moves to the next cell, a new row
    copies the date from the row above, and rows whose numbers don't add up
    turn yellow.
-5. **Save & compare.** The results for that page's dates appear in the
+6. **Save & compare.** The results for that page's dates appear in the
    panel, and the full list is in the **Comparison** tab.
 
 Re-opening a done submission loads what was typed before, so it can be
@@ -78,7 +84,10 @@ corrected and saved again.
 ## How the comparison works ("by date")
 
 For each date typed in, every logbook row with that date is compared with
-**every Spreadsheet 2 row that has the same date**:
+**every Spreadsheet 2 row that has the same date and branch**. The branch
+filter applies only when a Spreadsheet 2 column is set to `BRANCH`. Branch
+names must match apart from capital letters, spaces and punctuation.
+Field by field:
 
 - **Amount fields** (CASH, CARD, VAT SALE, 12% VAT, TOTAL): the day's
   totals must agree within the tolerance.

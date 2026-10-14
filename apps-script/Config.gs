@@ -14,8 +14,9 @@ const SHEETS = {
 const FIELDS = ['DATE', 'NAME', 'CI#', 'CASH', 'CARD', 'VAT SALE', '12% VAT'];
 const NUMERIC_FIELDS = ['CASH', 'CARD', 'VAT SALE', '12% VAT'];
 const TOTAL_FIELD = 'TOTAL (CASH+CARD)';
+const BRANCH = 'BRANCH';
 const IGNORE = '(ignore)';
-const MAP_CHOICES = FIELDS.concat([TOTAL_FIELD, IGNORE]);
+const MAP_CHOICES = FIELDS.concat([TOTAL_FIELD, BRANCH, IGNORE]);
 
 const DEFAULTS = [
   ['Spreadsheet 2 (URL or ID)', 'https://docs.google.com/spreadsheets/d/17ly2V1qu4DmwuT3efKzALchxsyJ5adj8AG8u2lBBe60/edit?gid=147027864'],
@@ -26,16 +27,20 @@ const DEFAULTS = [
   ['Spreadsheet 1 tab name (blank = use the gid in the URL)', ''],
   ['Sales Journal photo column', 'F'],
   ['Receipt / extra page photo column', 'G'],
+  ['Branch column in Spreadsheet 1 (blank = find the "Branch" header)', ''],
   ['Tolerance for amounts (±)', 1],
   ['VAT rate', 0.12],
 ];
-const MAP_TITLE_ROW = DEFAULTS.length + 3;
-const MAP_FIRST_ROW = MAP_TITLE_ROW + 2;
+const MAP_TITLE = 'Column matching: which logbook field is in each Spreadsheet 2 column?';
 
-const ENTRY_HEADERS = ['Submission', 'Response row'].concat(FIELDS, ['Row check', 'Entered by', 'Entered at']);
+const ENTRY_HEADERS = ['Submission', 'Response row'].concat(FIELDS, ['Row check', 'Entered by', 'Entered at', 'Branch']);
 
+/** Settings are looked up by label, so tabs set up by an older version keep working. */
 function getSettings_() {
-  const v = getConfigSheet_().getRange(2, 2, DEFAULTS.length, 1).getValues().map(r => r[0]);
+  const sh = getConfigSheet_();
+  const byLabel = {};
+  if (sh.getLastRow()) sh.getRange(1, 1, sh.getLastRow(), 2).getValues().forEach(r => { byLabel[String(r[0]).trim()] = r[1]; });
+  const v = DEFAULTS.map(d => d[0] in byLabel ? byLabel[d[0]] : d[1]);
   return {
     source: String(v[0]).trim(),
     sourceTab: String(v[1]).trim(),
@@ -45,8 +50,9 @@ function getSettings_() {
     responsesTab: String(v[5]).trim(),
     journalCol: String(v[6]).trim() || 'F',
     receiptCol: String(v[7]).trim() || 'G',
-    tolerance: Number(v[8]) || 0,
-    vatRate: Number(v[9]) || 0.12,
+    branchCol: String(v[8]).trim(),
+    tolerance: Number(v[9]) || 0,
+    vatRate: Number(v[10]) || 0.12,
   };
 }
 
@@ -67,6 +73,8 @@ function setupScanner() {
     sh.setColumnWidth(1, 340);
     sh.setColumnWidth(2, 420);
     sh.setColumnWidth(3, 220);
+  } else {
+    addMissingSettings_(sh);
   }
   ensureSheet_(SHEETS.ENTRIES, ENTRY_HEADERS);
   ensureSheet_(SHEETS.RESULTS, RESULT_HEADERS);
@@ -76,14 +84,37 @@ function setupScanner() {
     'each Spreadsheet 2 column needs the logbook field it holds. One column must be DATE.');
 }
 
+/** Adds settings introduced after the Config tab was created, just below the existing ones. */
+function addMissingSettings_(sh) {
+  const labels = () => sh.getRange(1, 1, Math.max(sh.getLastRow(), 1), 1).getValues().map(r => String(r[0]).trim());
+  DEFAULTS.forEach((d, i) => {
+    const have = labels();
+    if (have.indexOf(d[0]) >= 0) return;
+    const before = DEFAULTS.slice(0, i).map(x => have.indexOf(x[0])).filter(r => r >= 0);
+    const after = before.length ? Math.max.apply(null, before) + 1 : 1;
+    sh.insertRowAfter(after);
+    sh.getRange(after + 1, 1, 1, 2).setValues([d]);
+  });
+}
+
+/** Row of the column-matching title in the Config tab, or 0. */
+function mapTitleRow_(sh) {
+  const n = sh.getLastRow();
+  if (!n) return 0;
+  const col = sh.getRange(1, 1, n, 1).getValues();
+  for (let i = 0; i < n; i++) if (/^Column matching/.test(String(col[i][0]))) return i + 1;
+  return 0;
+}
+
+/** Creates the tab if missing; on an existing tab, refreshes the header row (columns are only ever appended). */
 function ensureSheet_(name, headers) {
   const ss = SpreadsheetApp.getActive();
   let sh = ss.getSheetByName(name);
   if (!sh) {
     sh = ss.insertSheet(name);
-    sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
     sh.setFrozenRows(1);
   }
+  sh.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
   return sh;
 }
 
@@ -103,19 +134,22 @@ function refreshMapping_() {
     return [l, header, previous[l] || guessField_(header)];
   });
 
-  const old = sh.getLastRow() - MAP_FIRST_ROW + 1;
-  if (old > 0) sh.getRange(MAP_FIRST_ROW, 1, old, 3).clearContent().clearDataValidations();
-  sh.getRange(MAP_TITLE_ROW, 1).setValue('Column matching: which logbook field is in each Spreadsheet 2 column?').setFontWeight('bold');
-  sh.getRange(MAP_TITLE_ROW + 1, 1, 1, 3)
+  const titleRow = mapTitleRow_(sh) || DEFAULTS.length + 3;
+  const firstRow = titleRow + 2;
+  const old = sh.getLastRow() - firstRow + 1;
+  if (old > 0) sh.getRange(firstRow, 1, old, 3).clearContent().clearDataValidations();
+  sh.getRange(titleRow, 1).setValue(MAP_TITLE).setFontWeight('bold');
+  sh.getRange(titleRow + 1, 1, 1, 3)
     .setValues([['Spreadsheet 2 column', 'Header in Spreadsheet 2', 'Logbook field']]).setFontWeight('bold');
-  sh.getRange(MAP_FIRST_ROW, 1, rows.length, 3).setValues(rows);
-  sh.getRange(MAP_FIRST_ROW, 3, rows.length, 1).setDataValidation(
+  sh.getRange(firstRow, 1, rows.length, 3).setValues(rows);
+  sh.getRange(firstRow, 3, rows.length, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(MAP_CHOICES, true).build());
 }
 
 function guessField_(header) {
   const h = String(header).toLowerCase();
   if (/date/.test(h)) return 'DATE';
+  if (/branch|store|outlet/.test(h)) return BRANCH;
   if (/name|customer/.test(h)) return 'NAME';
   if (/\bci\b|ci#|ci no|invoice|or no|receipt/.test(h)) return 'CI#';
   if (/cash/.test(h)) return 'CASH';
@@ -129,9 +163,11 @@ function guessField_(header) {
 /** Returns [{letter, col, header, field}] from the matching table. */
 function readMapping_(includeIgnored) {
   const sh = getConfigSheet_();
-  const n = sh.getLastRow() - MAP_FIRST_ROW + 1;
+  const titleRow = mapTitleRow_(sh);
+  if (!titleRow) return [];
+  const n = sh.getLastRow() - titleRow - 1;
   if (n <= 0) return [];
-  return sh.getRange(MAP_FIRST_ROW, 1, n, 3).getValues()
+  return sh.getRange(titleRow + 2, 1, n, 3).getValues()
     .filter(r => r[0] && (includeIgnored || (r[2] && r[2] !== IGNORE)))
     .map(r => ({ letter: String(r[0]).trim(), col: colToNum_(String(r[0]).trim()), header: String(r[1]), field: r[2] }));
 }
@@ -180,6 +216,23 @@ function numToCol_(n) {
   let s = '';
   for (; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s;
   return s;
+}
+
+/** Spreadsheet 1 column holding the branch (1-based), or 0 if there is none. */
+function branchColumn_(s, headers) {
+  if (s.branchCol) return colToNum_(s.branchCol);
+  return headers.findIndex(h => /branch/i.test(h)) + 1;
+}
+
+/** Unique, trimmed branch names, A–Z (case-insensitive, "Branch 2" before "Branch 10"). */
+function sortBranches_(names) {
+  const seen = {};
+  return names.map(n => String(n).trim()).filter(n => {
+    const k = n.toLowerCase();
+    if (!n || seen[k]) return false;
+    seen[k] = true;
+    return true;
+  }).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
 }
 
 /** 'C,D,X:AF' → ['C','D','X','Y',...,'AF'] */
